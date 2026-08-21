@@ -123,6 +123,11 @@ def main() -> None:
                 chart_path = "chart.png"
 
         st.session_state.messages.append({
+            "role": "user",
+            "content": prompt,
+        })
+
+        st.session_state.messages.append({
             "role": "assistant",
             "content": response,
             "chart": chart_path,
