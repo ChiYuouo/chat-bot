@@ -108,7 +108,6 @@ def main() -> None:
             st.error("⚠️ 请先在侧边栏输入 DashScope API Key")
             st.stop()
 
-        st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
