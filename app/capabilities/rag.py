@@ -32,22 +32,34 @@ def process_pdf(pdf_bytes: bytes) -> List[Any]:
         os.unlink(tmp_path)
 
 
-def rag_answer(question: str, chunks: List[Any]) -> Dict[str, Any]:
+def build_vector_store(chunks: List[Any]) -> Chroma:
+    """为一份已切分的文档创建向量库。"""
     embeddings = DashScopeEmbeddings(model=Config.EMBEDDING_MODEL)
-    store = Chroma.from_documents(chunks, embeddings)
+    return Chroma.from_documents(chunks, embeddings)
+
+
+def _display_page(metadata: Dict[str, Any]) -> Any:
+    """将 PyMuPDF 从 0 开始的页码转换为用户看到的页码。"""
+    if "page" in metadata:
+        page = metadata["page"]
+        return page + 1 if isinstance(page, int) else page
+    return metadata.get("page_number", "未知")
+
+
+def rag_answer(question: str, store: Chroma) -> Dict[str, Any]:
     retriever = store.as_retriever(search_kwargs={"k": Config.RETRIEVAL_K})
     results = retriever.invoke(question)
 
     context_parts = []
     for doc in results:
-        page_num = doc.metadata.get("page", doc.metadata.get("page_number", "未知"))
+        page_num = _display_page(doc.metadata)
         context_parts.append(f"【第 {page_num} 页】\n{doc.page_content}")
     context = "\n\n".join(context_parts)
 
     citations = [
         {
-            "page": doc.metadata.get("page", doc.metadata.get("page_number", "?")),
-            "content": doc.page_content[:150] + "...",
+            "page": _display_page(doc.metadata),
+            "content": doc.page_content[:150],
         }
         for doc in results
     ]

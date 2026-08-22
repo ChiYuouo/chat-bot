@@ -1,5 +1,4 @@
 """聊天区和文件上传界面。"""
-
 import os
 import tempfile
 
@@ -8,7 +7,7 @@ import streamlit as st
 
 from app.capabilities.rag import process_pdf
 from app.router import process_user_message
-from app.state import init_session_state
+from app.state import clear_uploaded_files, init_session_state, remove_uploaded_image_temp_file
 from app.ui.sidebar import render_sidebar
 
 
@@ -50,7 +49,7 @@ def render_chat_input_area():
                 st.rerun()
         with c4:
             if st.button("🗑️ 清空", use_container_width=True, type="secondary"):
-                st.session_state.uploaded_files = {key: None for key in st.session_state.uploaded_files}
+                clear_uploaded_files()
                 st.session_state.show_csv = False
                 st.session_state.show_pdf = False
                 st.session_state.show_img = False
@@ -69,6 +68,7 @@ def render_chat_input_area():
             if file:
                 with st.spinner("处理 PDF..."):
                     st.session_state.uploaded_files["pdf_chunks"] = process_pdf(file.read())
+                    st.session_state.uploaded_files["pdf_store"] = None
                     st.session_state.uploaded_files["pdf_name"] = file.name
                 st.session_state.show_pdf = False
                 st.rerun()
@@ -77,7 +77,9 @@ def render_chat_input_area():
             file = st.file_uploader("选择图片", type=["png", "jpg", "jpeg"], key="up_img")
             if file:
                 image_bytes = file.read()
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                remove_uploaded_image_temp_file()
+                suffix = "." + file.name.rsplit(".", 1)[-1].lower()
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     tmp.write(image_bytes)
                     st.session_state.uploaded_files["image_path"] = tmp.name
                 st.session_state.uploaded_files["image_name"] = file.name
@@ -99,7 +101,7 @@ def main() -> None:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            if message.get("chart") and os.path.exists(message["chart"]):
+            if message.get("chart"):
                 st.image(message["chart"])
 
     prompt = render_chat_input_area()
@@ -111,16 +113,13 @@ def main() -> None:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        if os.path.exists("chart.png"):
-            os.remove("chart.png")
-
         with st.chat_message("assistant"):
-            response = process_user_message(prompt)
+            result = process_user_message(prompt)
+            response = result["content"]
+            chart = result["chart"]
             st.markdown(response)
-            chart_path = None
-            if os.path.exists("chart.png") and "数据分析" in response:
-                st.image("chart.png")
-                chart_path = "chart.png"
+            if chart:
+                st.image(chart)
 
         st.session_state.messages.append({
             "role": "user",
@@ -130,6 +129,6 @@ def main() -> None:
         st.session_state.messages.append({
             "role": "assistant",
             "content": response,
-            "chart": chart_path,
+            "chart": chart,
         })
 

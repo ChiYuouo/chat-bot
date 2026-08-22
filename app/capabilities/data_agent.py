@@ -1,20 +1,16 @@
 """CSV 数据分析能力。"""
 
-import io
-import os
 import re
-import sys
 from typing import Any, Dict
 
 import pandas as pd
 
 from app.config import Config
 from app.llm import create_chat_model
+from app.safe_executor import execute_dataframe_code
 
 
 def agent_answer(df: pd.DataFrame, question: str) -> Dict[str, Any]:
-    import numpy as np
-
     df_meta = {
         "shape": df.shape,
         "columns": list(df.columns),
@@ -37,36 +33,19 @@ DataFrame 元信息：
 1. 只输出 Python 代码，不要解释。
 2. 代码中使用 df 表示 DataFrame。
 3. 最后使用 print() 输出结果。
-4. 如果需要画图，使用 matplotlib 并保存到 chart.png。
+4. 如果需要画图，直接使用 plt，并且必须调用 plt.savefig(chart_path) 保存图片。
+5. 不要使用 import、open、eval、exec，也不要读取或写入任何外部文件。
 """
     response = create_chat_model(Config.LLM_MODEL, temperature=0).invoke(prompt)
     code = response.content.strip()
     code = re.sub(r"^```(?:python)?\s*", "", code, flags=re.IGNORECASE)
     code = re.sub(r"\s*```$", "", code)
 
-    old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
-    try:
-        exec_globals = {"df": df, "pd": pd, "np": np}
-        if "plt" in code or "matplotlib" in code:
-            try:
-                import matplotlib
-                matplotlib.use("Agg")
-                import matplotlib.pyplot as plt
-                exec_globals["plt"] = plt
-                exec_globals["matplotlib"] = matplotlib
-            except ImportError:
-                code = re.sub(r".*plt\..*\n?", "", code)
-                code = re.sub(r".*matplotlib.*\n?", "", code)
-                print("注意：matplotlib 未安装，已跳过绘图代码\n")
+    execution = execute_dataframe_code(code, df)
+    if execution["success"]:
+        output = execution["output"] or "代码执行成功，但没有打印结果。"
+    else:
+        output = f"执行被拒绝或失败：{execution['error']}"
 
-        exec(code, exec_globals)
-        output = sys.stdout.getvalue()
-    except Exception as exc:
-        output = f"执行出错: {exc}"
-    finally:
-        sys.stdout = old_stdout
-
-    chart_path = "chart.png" if os.path.exists("chart.png") else None
-    return {"answer": output, "code": code, "chart": chart_path}
+    return {"answer": output, "code": code, "chart": execution["chart"]}
 
