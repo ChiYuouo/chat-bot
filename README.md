@@ -82,4 +82,12 @@ app/
 `Python` · `Streamlit` · `LangChain` · `DashScope` · `ChromaDB` · `Pandas` · `Matplotlib`
 
 > [!WARNING]
-> CSV 分析模块会执行大模型生成的 Python 代码。当前实现适合学习和本地演示，请勿直接用于不受信任的数据或生产环境。
+> CSV 分析模块会在受限子进程中执行大模型生成的 Python 代码，并进行语法检查与超时控制；这仍不能替代生产环境的容器沙箱、网络隔离与操作系统级资源限制。
+
+## 运行测试
+
+项目测试不依赖真实 API Key：
+
+```bash
+python -m unittest discover -s tests -v
+```
