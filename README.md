@@ -5,7 +5,7 @@
 ## 功能特性
 
 - **智能意图路由**：识别单个或多个任务，并分发到对应能力模块
-- **PDF RAG 问答**：检索文档内容，回答问题并标注引用页码
+- **RAG 2.0 问答**：问题改写、向量与 BM25 混合召回、RRF 混排、LLM 精排，并标注引用页码
 - **CSV 数据分析**：根据自然语言生成 Pandas 代码、统计结果与图表
 - **图片内容识别**：理解图片并返回结构化信息
 - **多轮通用对话**：保留最近的会话上下文，支持连续提问
@@ -18,7 +18,7 @@ flowchart LR
     UI --> I[意图识别<br/>Qwen Turbo]
     I --> R{能力路由}
     R --> G[通用对话<br/>Qwen Max]
-    R --> D[PDF RAG<br/>Chroma + Embedding]
+    R --> D[PDF RAG 2.0<br/>Rewrite + Hybrid Search + Rerank]
     R --> A[CSV 数据分析<br/>Pandas + Matplotlib]
     R --> V[图片识别<br/>Qwen VL Max]
     G & D & A & V --> UI
@@ -80,6 +80,31 @@ app/
 ## 技术栈
 
 `Python` · `Streamlit` · `LangChain` · `DashScope` · `ChromaDB` · `Pandas` · `Matplotlib`
+
+## RAG 2.0 检索链路
+
+```text
+用户问题
+  → 结合历史对话 Rewrite
+  → 向量 Top 15 + 中文 BM25 Top 15
+  → RRF 混排 Top 10
+  → Qwen Listwise 精排
+  → Top 4 生成答案并标注页码
+```
+
+聊天界面的“查看 RAG 检索过程”会展示改写结果、两路召回、混排、精排和各阶段耗时。Rewrite、精排失败时都会自动降级，不会中断问答。
+
+### RRF 混排
+
+[`app/rag/retrieval.py`](app/rag/retrieval.py) 中的 `reciprocal_rank_fusion` 会累加同一个 chunk 在多路召回中的倒数排名分数：
+
+实现公式：
+
+```text
+score(document) = Σ 1 / (rrf_k + rank_i)
+```
+
+对应单元测试位于 [`tests/test_rag_retrieval.py`](tests/test_rag_retrieval.py)。
 
 > [!WARNING]
 > CSV 分析模块会在受限子进程中执行大模型生成的 Python 代码，并进行语法检查与超时控制；这仍不能替代生产环境的容器沙箱、网络隔离与操作系统级资源限制。
