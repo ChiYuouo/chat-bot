@@ -1,6 +1,23 @@
 import unittest
+from types import SimpleNamespace
 
-from app.rag.retrieval import reciprocal_rank_fusion
+from app.rag.retrieval import BM25Index, reciprocal_rank_fusion
+
+
+class BM25IndexTests(unittest.TestCase):
+    def test_small_corpus_keeps_relevant_high_frequency_terms(self):
+        chunks = [
+            SimpleNamespace(page_content="员工年假十天"),
+            SimpleNamespace(page_content="员工年假规定"),
+        ]
+
+        results = BM25Index(chunks).search("员工年假", k=2)
+
+        self.assertEqual(results, chunks)
+
+    def test_rejects_empty_chunks(self):
+        with self.assertRaisesRegex(ValueError, "无文本块"):
+            BM25Index([])
 
 
 class ReciprocalRankFusionTests(unittest.TestCase):

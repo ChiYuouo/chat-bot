@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 import jieba
-from rank_bm25 import BM25Okapi
+from rank_bm25 import BM25L
 
 
 def _tokenize(text: str) -> List[str]:
@@ -21,14 +21,11 @@ def _tokenize(text: str) -> List[str]:
 
 @dataclass
 class SearchCandidate:
-    """一个候选文档块及其在各检索阶段的排名信息。"""
+    """一个候选文档块及其融合分数。"""
 
     chunk_id: str
     document: Any
-    vector_rank: Optional[int] = None
-    keyword_rank: Optional[int] = None
     fusion_score: float = 0.0
-    rerank_rank: Optional[int] = None
 
 
 class BM25Index:
@@ -36,8 +33,10 @@ class BM25Index:
 
     def __init__(self, chunks: Sequence[Any]):
         self.chunks = list(chunks)
+        if not self.chunks:
+            raise ValueError("无法为无文本块的文档创建 BM25 索引")
         corpus = [_tokenize(doc.page_content) for doc in self.chunks]
-        self._index = BM25Okapi(corpus)
+        self._index = BM25L(corpus)
 
     def search(self, query: str, k: int) -> List[Any]:
         if not self.chunks:
@@ -48,7 +47,6 @@ class BM25Index:
             key=lambda index: float(scores[index]),
             reverse=True,
         )
-        # 分数为 0 说明查询词完全没有命中，不能把无关块塞进混排。
         return [
             self.chunks[index]
             for index in ranked_indexes[:k]
@@ -64,6 +62,7 @@ def reciprocal_rank_fusion(
     scores: Dict[str, float] = {}
     for chunk_ids in rankings.values():
         for rank, chunk_id in enumerate(chunk_ids, start=1):
+            # rrf_k 用来削弱相邻名次的分差；同一块被多路召回时分数会在这里累加。
             current_score = 1 / (rrf_k + rank)
             scores[chunk_id] = scores.get(chunk_id, 0.0) + current_score
     return scores
@@ -94,6 +93,7 @@ def hybrid_retrieve(
     scores = reciprocal_rank_fusion(rankings)
 
     documents: Dict[str, Any] = {}
+    # 两路结果可能包含同一个块，以 chunk_id 为键既能去重，也能在融合排序后取回原文档。
     for doc in [*vector_docs, *keyword_docs]:
         documents[_chunk_id(doc)] = doc
 
@@ -105,12 +105,6 @@ def hybrid_retrieve(
             SearchCandidate(
                 chunk_id=chunk_id,
                 document=documents[chunk_id],
-                vector_rank=(rankings["vector"].index(chunk_id) + 1)
-                if chunk_id in rankings["vector"]
-                else None,
-                keyword_rank=(rankings["keyword"].index(chunk_id) + 1)
-                if chunk_id in rankings["keyword"]
-                else None,
                 fusion_score=float(score),
             )
         )

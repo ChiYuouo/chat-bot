@@ -50,16 +50,15 @@ def llm_rerank(
 
         by_id = {item.chunk_id: item for item in candidates}
         valid_ids = []
+        # 模型输出属于不可信输入：过滤虚构 ID 和重复 ID，避免精排结果引用不存在的块。
         for chunk_id in ranked_ids:
             chunk_id = str(chunk_id)
             if chunk_id in by_id and chunk_id not in valid_ids:
                 valid_ids.append(chunk_id)
 
         ranked = []
-        for rank, chunk_id in enumerate(valid_ids, start=1):
-            item = by_id[chunk_id]
-            item.rerank_rank = rank
-            ranked.append(item)
+        for chunk_id in valid_ids:
+            ranked.append(by_id[chunk_id])
         return ranked, {
             "applied": True,
             "input_chunk_ids": list(by_id),

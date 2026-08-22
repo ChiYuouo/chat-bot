@@ -31,8 +31,12 @@ def process_pdf(pdf_bytes: bytes, source_name: str = "uploaded.pdf") -> List[Any
             separators=["(?<=。)", "(?<=！)", "(?<=？)", "(?<=，)", " "],
         )
         chunks = splitter.split_documents(docs)
+        if not chunks:
+            raise ValueError("PDF 中未提取到可检索文本，请确认 PDF 包含文本内容")
         for index, chunk in enumerate(chunks):
             page = _display_page(chunk.metadata)
+            # 文件、页码、块位置和内容共同决定 ID：相同输入可重复生成同一 ID，
+            # 后续向量召回与 BM25 召回才能用它识别、合并同一个文本块。
             identity = f"{source_name}|{page}|{index}|{chunk.page_content}".encode("utf-8")
             chunk.metadata.update({
                 "chunk_id": f"chunk-{hashlib.sha1(identity).hexdigest()[:12]}",
@@ -151,6 +155,7 @@ def rag_answer(
 
     started = time.perf_counter()
     response = create_chat_model(Config.LLM_MODEL, temperature=0).invoke(prompt)
+    # debug 中保存的是同一个 timings 字典对象，因此此处新增的生成耗时也会显示在 UI。
     timings["answer_generation"] = round((time.perf_counter() - started) * 1000, 1)
     answer = (
         response.content

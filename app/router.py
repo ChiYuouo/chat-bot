@@ -59,6 +59,8 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         fallback_reason = f"意图置信度较低（{intent_result.confidence:.0%}）"
 
     previous_intents = getattr(st.session_state, "last_intents", [])
+    # “那最多几天”通常会被意图模型判为 general；结合上一轮意图把短追问送回 RAG，
+    # 后续 Rewrite 才有机会将其中的指代补全为可独立检索的问题。
     if (
         intents == ["general"]
         and "rag_qa" in previous_intents

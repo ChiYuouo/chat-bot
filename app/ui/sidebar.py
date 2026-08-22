@@ -39,6 +39,7 @@ def render_sidebar() -> None:
         with col1:
             if st.button("🗑️ 清空对话", use_container_width=True):
                 st.session_state.messages = []
+                st.session_state.last_intents = []
                 st.rerun()
         with col2:
             if st.button("📛 清空文件", use_container_width=True):

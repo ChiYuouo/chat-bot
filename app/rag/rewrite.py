@@ -19,6 +19,7 @@ def rewrite_query(
         return question, {"applied": False, "reason": "没有历史对话或功能未开启"}
 
     history_lines = []
+    # 只取最近几轮并限制单条长度，避免完整回答反复进入 Rewrite Prompt。
     for message in chat_history[-Config.REWRITE_HISTORY_MESSAGES:]:
         role = "用户" if message.get("role") == "user" else "助手"
         content = str(message.get("content", ""))[:600]
