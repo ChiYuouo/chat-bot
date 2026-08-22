@@ -81,7 +81,7 @@ app/
 
 `Python` · `Streamlit` · `LangChain` · `DashScope` · `ChromaDB` · `Pandas` · `Matplotlib`
 
-## RAG 2.0 检索链路
+## RAG检索链路
 
 ```text
 用户问题
