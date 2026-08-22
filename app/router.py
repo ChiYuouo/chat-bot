@@ -1,13 +1,14 @@
 """意图到能力模块的路由。"""
 
 import json
+import re
 from typing import Any, Dict
 
 import streamlit as st
 
 from app.capabilities.data_agent import agent_answer
 from app.capabilities.general import general_answer
-from app.capabilities.rag import build_vector_store, rag_answer
+from app.capabilities.rag import build_keyword_index, build_vector_store, rag_answer
 from app.capabilities.vision import vision_answer
 from app.config import Config
 from app.intent import recognize_intent
@@ -23,9 +24,18 @@ def get_intent_badge(intent: str) -> str:
     return badges.get(intent, intent)
 
 
+def _looks_like_contextual_follow_up(text: str) -> bool:
+    """识别需要依赖上一轮才能理解的短追问，保证它能进入 Rewrite。"""
+    normalized = text.strip()
+    return len(normalized) <= 30 and bool(
+        re.search(r"^(那|那么|它|其中|这个|上述|前面|再|还有|多少|几|为什么|如何)", normalized)
+    )
+
+
 def process_user_message(user_input: str) -> Dict[str, Any]:
     files = st.session_state.uploaded_files
     chart = None
+    rag_debug = None
 
     try:
         intent_result = recognize_intent(user_input)
@@ -35,10 +45,12 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         return {
             "content": f"⚠️ **意图识别已降级**: {exc}\n\n💬 **回答**:\n{answer}",
             "chart": None,
+            "rag_debug": None,
         }
 
     intents = intent_result.intent
     fallback_reason = None
+    routing_note = None
     if not intents:
         intents = ["general"]
         fallback_reason = "未识别到有效意图"
@@ -46,11 +58,24 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         intents = ["general"]
         fallback_reason = f"意图置信度较低（{intent_result.confidence:.0%}）"
 
+    previous_intents = getattr(st.session_state, "last_intents", [])
+    if (
+        intents == ["general"]
+        and "rag_qa" in previous_intents
+        and files.get("pdf_chunks") is not None
+        and _looks_like_contextual_follow_up(user_input)
+    ):
+        intents = ["rag_qa"]
+        fallback_reason = None
+        routing_note = "识别为上一轮文档问答的追问"
+
     intent_str = ", ".join(get_intent_badge(intent) for intent in intents)
     confidence_str = f"{intent_result.confidence:.0%}"
     response_parts = [f"🎆 **意图识别**: {intent_str} (置信度: {confidence_str})\n"]
     if fallback_reason:
         response_parts.append(f"⚠️ {fallback_reason}，已自动降级为普通问答。\n")
+    if routing_note:
+        response_parts.append(f"ℹ️ {routing_note}。\n")
 
     for intent in intents:
         try:
@@ -59,10 +84,19 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                     response_parts.append("⚠️ **RAG 问答**需要先上传 PDF 文件（在左侧边栏上传）\n")
                 else:
                     if files.get("pdf_store") is None:
-                        with st.spinner("首次构建文档向量库..."):
+                        with st.spinner("首次构建文档检索索引..."):
                             files["pdf_store"] = build_vector_store(files["pdf_chunks"])
-                    with st.spinner("正在检索文档并生成答案..."):
-                        result = rag_answer(user_input, files["pdf_store"])
+                            files["pdf_keyword_index"] = build_keyword_index(files["pdf_chunks"])
+                    elif files.get("pdf_keyword_index") is None:
+                        files["pdf_keyword_index"] = build_keyword_index(files["pdf_chunks"])
+                    with st.spinner("正在改写问题、混合检索并精排..."):
+                        result = rag_answer(
+                            user_input,
+                            files["pdf_store"],
+                            files["pdf_keyword_index"],
+                            st.session_state.messages,
+                        )
+                    rag_debug = result.get("debug")
                     response_parts.append(f"📚 **RAG 回答**:\n{result['answer']}\n")
                     if result["citations"]:
                         citations = "\n".join(
@@ -103,5 +137,10 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         except Exception as exc:
             response_parts.append(f"❌ **{get_intent_badge(intent)} 执行失败**: {exc}\n")
 
-    return {"content": "\n".join(response_parts), "chart": chart}
+    st.session_state.last_intents = intents
+    return {
+        "content": "\n".join(response_parts),
+        "chart": chart,
+        "rag_debug": rag_debug,
+    }
 

@@ -13,6 +13,7 @@ def _empty_uploaded_files():
         "pdf_name": None,
         "pdf_chunks": None,
         "pdf_store": None,
+        "pdf_keyword_index": None,
         "image_name": None,
         "image_path": None,
         "image_bytes": None,
@@ -22,6 +23,8 @@ def _empty_uploaded_files():
 def init_session_state() -> None:
     if "messages" not in st.session_state:
         st.session_state.messages = []
+    if "last_intents" not in st.session_state:
+        st.session_state.last_intents = []
     if "uploaded_files" not in st.session_state:
         st.session_state.uploaded_files = _empty_uploaded_files()
     else:

@@ -67,8 +67,11 @@ def render_chat_input_area():
             file = st.file_uploader("选择 PDF 文件", type=["pdf"], key="up_pdf")
             if file:
                 with st.spinner("处理 PDF..."):
-                    st.session_state.uploaded_files["pdf_chunks"] = process_pdf(file.read())
+                    st.session_state.uploaded_files["pdf_chunks"] = process_pdf(
+                        file.read(), source_name=file.name
+                    )
                     st.session_state.uploaded_files["pdf_store"] = None
+                    st.session_state.uploaded_files["pdf_keyword_index"] = None
                     st.session_state.uploaded_files["pdf_name"] = file.name
                 st.session_state.show_pdf = False
                 st.rerun()
@@ -103,6 +106,9 @@ def main() -> None:
             st.markdown(message["content"])
             if message.get("chart"):
                 st.image(message["chart"])
+            if message.get("rag_debug"):
+                with st.expander("查看 RAG 检索过程"):
+                    st.json(message["rag_debug"])
 
     prompt = render_chat_input_area()
     if prompt:
@@ -117,9 +123,13 @@ def main() -> None:
             result = process_user_message(prompt)
             response = result["content"]
             chart = result["chart"]
+            rag_debug = result.get("rag_debug")
             st.markdown(response)
             if chart:
                 st.image(chart)
+            if rag_debug:
+                with st.expander("查看 RAG 检索过程"):
+                    st.json(rag_debug)
 
         st.session_state.messages.append({
             "role": "user",
@@ -130,5 +140,6 @@ def main() -> None:
             "role": "assistant",
             "content": response,
             "chart": chart,
+            "rag_debug": rag_debug,
         })
 
