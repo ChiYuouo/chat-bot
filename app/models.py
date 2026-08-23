@@ -1,11 +1,21 @@
 """跨模块使用的数据模型。"""
 
+import time
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 
 IntentName = Literal["rag_qa", "data_agent", "vision_extract", "general"]
+SourceModality = Literal["pdf"]
+
+
+class KnowledgeSource(BaseModel):
+    source_id: str
+    name: str
+    modality: SourceModality
+    chunk_count: int = Field(ge=1)
+    created_at: float = Field(default_factory=time.time)
 
 
 class IntentSlots(BaseModel):

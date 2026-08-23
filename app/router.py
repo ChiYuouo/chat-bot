@@ -64,7 +64,7 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
     if (
         intents == ["general"]
         and "rag_qa" in previous_intents
-        and files.get("pdf_chunks") is not None
+        and bool(files.get("pdf_chunks"))
         and _looks_like_contextual_follow_up(user_input)
     ):
         intents = ["rag_qa"]
@@ -82,7 +82,7 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
     for intent in intents:
         try:
             if intent == "rag_qa":
-                if files["pdf_chunks"] is None:
+                if not files.get("pdf_chunks"):
                     response_parts.append("⚠️ **RAG 问答**需要先上传 PDF 文件（在左侧边栏上传）\n")
                 else:
                     if files.get("pdf_store") is None:
@@ -109,8 +109,9 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                     response_parts.append(f"📚 **RAG 回答**:\n{result['answer']}\n")
                     if result["citations"]:
                         citations = "\n".join(
-                            f"  - 第 {citation['page']} 页: {citation['content'][:50]}..."
-                            for citation in result["citations"][:3]
+                            f"  - {citation['source']} · 第 {citation['page']} 页: "
+                            f"{citation['content'][:50]}..."
+                            for citation in result["citations"]
                         )
                         response_parts.append(f"\n🔎 **引用来源**:\n{citations}\n")
 

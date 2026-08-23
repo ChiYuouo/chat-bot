@@ -4,7 +4,7 @@ import os
 
 import streamlit as st
 
-from app.state import clear_uploaded_files
+from app.state import clear_uploaded_files, remove_pdf_source
 
 
 def render_sidebar() -> None:
@@ -25,8 +25,15 @@ def render_sidebar() -> None:
         if files.get("csv_df") is not None:
             st.success(f"📊 CSV: {files.get('csv_name', 'unknown')}")
             has_files = True
-        if files.get("pdf_chunks") is not None:
-            st.success(f"📚 PDF: {files.get('pdf_name', 'unknown')}")
+        for source in (files.get("pdf_sources") or {}).values():
+            source_col, delete_col = st.columns([5, 1])
+            with source_col:
+                st.success(f"📚 {source.name} · {source.chunk_count} 块")
+            with delete_col:
+                if st.button("✕", key=f"delete_{source.source_id}", help="删除该资料"):
+                    remove_pdf_source(files, source.source_id)
+                    st.session_state.last_intents = []
+                    st.rerun()
             has_files = True
         if files.get("image_path") is not None:
             st.success(f"🖼️ 图片: {files.get('image_name', 'unknown')}")

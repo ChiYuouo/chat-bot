@@ -5,9 +5,14 @@ import tempfile
 import pandas as pd
 import streamlit as st
 
-from app.capabilities.rag import process_pdf
+from app.capabilities.rag import ingest_pdf
 from app.router import process_user_message
-from app.state import clear_uploaded_files, init_session_state, remove_uploaded_image_temp_file
+from app.state import (
+    add_pdf_source,
+    clear_uploaded_files,
+    init_session_state,
+    remove_uploaded_image_temp_file,
+)
 from app.ui.sidebar import render_sidebar
 
 
@@ -20,8 +25,9 @@ def render_chat_input_area():
     uploaded_names = []
     if uploaded.get("csv_df") is not None:
         uploaded_names.append("📊CSV")
-    if uploaded.get("pdf_chunks") is not None:
-        uploaded_names.append("📚PDF")
+    pdf_count = len(uploaded.get("pdf_sources") or {})
+    if pdf_count:
+        uploaded_names.append(f"📚PDF × {pdf_count}")
     if uploaded.get("image_path") is not None:
         uploaded_names.append("🖼️图片")
     if uploaded_names:
@@ -64,27 +70,17 @@ def render_chat_input_area():
                 st.rerun()
 
         if st.session_state.get("show_pdf"):
-            file = st.file_uploader("选择 PDF 文件", type=["pdf"], key="up_pdf")
+            revision = st.session_state.setdefault("pdf_upload_revision", 0)
+            file = st.file_uploader(
+                "选择 PDF 文件",
+                type=["pdf"],
+                key=f"up_pdf_{revision}",
+            )
             if file:
-                # 先解析新 PDF，解析失败时仍然保留旧 PDF。
-                new_chunks = process_pdf(
-                    file.read(),
-                    source_name=file.name,
-                )
-
-                # 删除旧 PDF 对应的 Chroma Collection。
-                old_store = st.session_state.uploaded_files.get("pdf_store")
-                if old_store is not None:
-                    old_store.delete_collection()
-
-                # 替换为新 PDF，下一次提问时重新构建索引。
-                st.session_state.uploaded_files["pdf_chunks"] = new_chunks
-                st.session_state.uploaded_files["pdf_store"] = None
-                st.session_state.uploaded_files["pdf_keyword_index"] = None
-                # Query Rewrite 只使用当前 PDF 的问答历史，切换文件时不能沿用旧文档上下文。
-                st.session_state.uploaded_files["pdf_chat_history"] = []
-                st.session_state.uploaded_files["pdf_name"] = file.name
+                source, chunks = ingest_pdf(file.read(), source_name=file.name)
+                add_pdf_source(st.session_state.uploaded_files, source, chunks)
                 st.session_state.last_intents = []
+                st.session_state.pdf_upload_revision += 1
                 st.session_state.show_pdf = False
                 st.rerun()
 

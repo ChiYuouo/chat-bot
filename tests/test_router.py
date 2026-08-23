@@ -19,6 +19,22 @@ class RouterTests(unittest.TestCase):
         self.assertTrue(router._looks_like_contextual_follow_up("那最多有几天？"))
         self.assertFalse(router._looks_like_contextual_follow_up("请帮我写一封会议邀请邮件"))
 
+    @patch("app.router.recognize_intent")
+    def test_rag_requires_at_least_one_pdf_chunk(self, recognize_intent):
+        recognize_intent.return_value = IntentResult(intent=["rag_qa"], confidence=0.9)
+        files = {
+            "csv_df": None,
+            "pdf_chunks": [],
+            "pdf_store": None,
+            "pdf_keyword_index": None,
+            "image_path": None,
+        }
+
+        with patch.object(router, "st", _fake_streamlit(files)):
+            result = router.process_user_message("文档内容是什么？")
+
+        self.assertIn("需要先上传 PDF", result["content"])
+
     @patch("app.router.general_answer", return_value="普通回答")
     @patch("app.router.recognize_intent")
     def test_low_confidence_intent_falls_back_to_general(self, recognize_intent, general_answer):

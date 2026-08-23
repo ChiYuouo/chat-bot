@@ -22,6 +22,26 @@ class RagMetadataTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "未提取到可检索文本"):
             process_pdf(b"%PDF-empty", source_name="empty.pdf")
 
+    @patch("app.capabilities.rag.PyMuPDFLoader")
+    def test_adds_source_metadata_to_every_chunk(self, loader_class):
+        loader_class.return_value.load.return_value = [
+            Document(page_content="第一章 年假\n员工年假十天。", metadata={"page": 0})
+        ]
+
+        chunks = process_pdf(
+            b"%PDF-source",
+            source_name="员工手册.pdf",
+            source_id="source-handbook",
+        )
+
+        self.assertTrue(chunks)
+        self.assertTrue(
+            all(chunk.metadata["source_id"] == "source-handbook" for chunk in chunks)
+        )
+        self.assertTrue(
+            all(chunk.metadata["source"] == "员工手册.pdf" for chunk in chunks)
+        )
+
 
 class StructuredChunkTests(unittest.TestCase):
     def test_preserves_section_title_in_every_child_chunk(self):
