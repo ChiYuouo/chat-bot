@@ -26,6 +26,7 @@ class SearchCandidate:
     chunk_id: str
     document: Any
     fusion_score: float = 0.0
+    relevance_score: float | None = None
 
 
 class BM25Index:
@@ -81,20 +82,27 @@ def hybrid_retrieve(
     keyword_index: BM25Index,
     per_route_k: int,
     fusion_k: int,
+    original_query: str | None = None,
 ) -> Tuple[List[SearchCandidate], Dict[str, Any]]:
-    """执行向量、BM25 两路召回，并使用 RRF 融合结果。"""
-    vector_docs = vector_store.similarity_search(query, k=per_route_k)
-    keyword_docs = keyword_index.search(query, k=per_route_k)
+    """对改写问题和原问题分别执行向量、BM25 召回，再使用 RRF 融合。"""
+    query_routes = [("rewritten", query)]
+    if original_query and original_query.strip() and original_query.strip() != query.strip():
+        query_routes.append(("original", original_query.strip()))
 
-    rankings = {
-        "vector": [_chunk_id(doc) for doc in vector_docs],
-        "keyword": [_chunk_id(doc) for doc in keyword_docs],
-    }
+    rankings: Dict[str, List[str]] = {}
+    route_documents: List[Any] = []
+    for route_name, route_query in query_routes:
+        vector_docs = vector_store.similarity_search(route_query, k=per_route_k)
+        keyword_docs = keyword_index.search(route_query, k=per_route_k)
+        rankings[f"vector_{route_name}"] = [_chunk_id(doc) for doc in vector_docs]
+        rankings[f"keyword_{route_name}"] = [_chunk_id(doc) for doc in keyword_docs]
+        route_documents.extend([*vector_docs, *keyword_docs])
+
     scores = reciprocal_rank_fusion(rankings)
 
     documents: Dict[str, Any] = {}
-    # 两路结果可能包含同一个块，以 chunk_id 为键既能去重，也能在融合排序后取回原文档。
-    for doc in [*vector_docs, *keyword_docs]:
+    # 四路结果可能包含同一个块，以 chunk_id 为键既能去重，也能累加它在不同查询中的排名分数。
+    for doc in route_documents:
         documents[_chunk_id(doc)] = doc
 
     candidates: List[SearchCandidate] = []
@@ -112,8 +120,10 @@ def hybrid_retrieve(
     candidates.sort(key=lambda item: item.fusion_score, reverse=True)
     candidates = candidates[:fusion_k]
     debug = {
-        "vector_chunk_ids": rankings["vector"],
-        "keyword_chunk_ids": rankings["keyword"],
+        "queries": {name: value for name, value in query_routes},
+        "route_rankings": rankings,
+        "vector_chunk_ids": rankings["vector_rewritten"],
+        "keyword_chunk_ids": rankings["keyword_rewritten"],
         "fusion_chunk_ids": [item.chunk_id for item in candidates],
         "fusion_method": "rrf",
     }

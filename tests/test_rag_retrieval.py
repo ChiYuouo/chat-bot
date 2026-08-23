@@ -1,7 +1,15 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import Mock
 
-from app.rag.retrieval import BM25Index, reciprocal_rank_fusion
+from app.rag.retrieval import BM25Index, hybrid_retrieve, reciprocal_rank_fusion
+
+
+def _document(chunk_id):
+    return SimpleNamespace(
+        page_content=chunk_id,
+        metadata={"chunk_id": chunk_id},
+    )
 
 
 class BM25IndexTests(unittest.TestCase):
@@ -43,6 +51,56 @@ class ReciprocalRankFusionTests(unittest.TestCase):
 
         self.assertAlmostEqual(scores["a"], 1 / 11 + 1 / 11 + 1 / 12)
         self.assertAlmostEqual(scores["b"], 1 / 11)
+
+
+class HybridRetrieveTests(unittest.TestCase):
+    def test_retrieves_with_rewritten_and_original_queries(self):
+        documents = {name: _document(name) for name in ["a", "b", "c", "d"]}
+        vector_store = Mock()
+        vector_store.similarity_search.side_effect = [
+            [documents["a"], documents["b"]],
+            [documents["c"], documents["a"]],
+        ]
+        keyword_index = Mock()
+        keyword_index.search.side_effect = [
+            [documents["b"]],
+            [documents["d"], documents["a"]],
+        ]
+
+        candidates, debug = hybrid_retrieve(
+            "员工年假有多少天",
+            vector_store,
+            keyword_index,
+            per_route_k=2,
+            fusion_k=4,
+            original_query="那有多少天",
+        )
+
+        self.assertEqual(vector_store.similarity_search.call_count, 2)
+        self.assertEqual(keyword_index.search.call_count, 2)
+        self.assertEqual(debug["queries"]["original"], "那有多少天")
+        self.assertIn("vector_original", debug["route_rankings"])
+        self.assertEqual(candidates[0].chunk_id, "a")
+
+    def test_does_not_repeat_routes_when_queries_are_equal(self):
+        document = _document("a")
+        vector_store = Mock()
+        vector_store.similarity_search.return_value = [document]
+        keyword_index = Mock()
+        keyword_index.search.return_value = [document]
+
+        _, debug = hybrid_retrieve(
+            "员工年假",
+            vector_store,
+            keyword_index,
+            per_route_k=2,
+            fusion_k=2,
+            original_query="员工年假",
+        )
+
+        vector_store.similarity_search.assert_called_once()
+        keyword_index.search.assert_called_once()
+        self.assertNotIn("original", debug["queries"])
 
 
 if __name__ == "__main__":

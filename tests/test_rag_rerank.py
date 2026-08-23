@@ -16,10 +16,15 @@ def _candidate(chunk_id, content):
 
 class LlmRerankTests(unittest.TestCase):
     @patch("app.rag.rerank.create_chat_model")
-    def test_uses_only_valid_ids_and_keeps_model_order(self, create_chat_model):
+    def test_filters_invalid_and_low_relevance_candidates(self, create_chat_model):
         llm = Mock()
         llm.invoke.return_value = Mock(
-            content='{"ranked_chunk_ids":["chunk-b","invented","chunk-a"]}'
+            content=(
+                '{"ranked_chunks":['
+                '{"chunk_id":"chunk-a","relevance_score":0.42},'
+                '{"chunk_id":"invented","relevance_score":0.99},'
+                '{"chunk_id":"chunk-b","relevance_score":0.91}]}'
+            )
         )
         create_chat_model.return_value = llm
 
@@ -28,8 +33,30 @@ class LlmRerankTests(unittest.TestCase):
             [_candidate("chunk-a", "A"), _candidate("chunk-b", "B")],
         )
 
-        self.assertEqual([item.chunk_id for item in ranked], ["chunk-b", "chunk-a"])
+        self.assertEqual([item.chunk_id for item in ranked], ["chunk-b"])
+        self.assertEqual(ranked[0].relevance_score, 0.91)
         self.assertTrue(debug["applied"])
+        self.assertEqual(debug["filtered_chunk_ids"], ["chunk-a"])
+
+    @patch("app.rag.rerank.create_chat_model")
+    def test_returns_no_context_when_all_candidates_are_below_threshold(self, create_chat_model):
+        llm = Mock()
+        llm.invoke.return_value = Mock(
+            content=(
+                '{"ranked_chunks":['
+                '{"chunk_id":"chunk-a","relevance_score":0.2},'
+                '{"chunk_id":"chunk-b","relevance_score":0.1}]}'
+            )
+        )
+        create_chat_model.return_value = llm
+
+        ranked, debug = llm_rerank(
+            "问题",
+            [_candidate("chunk-a", "A"), _candidate("chunk-b", "B")],
+        )
+
+        self.assertEqual(ranked, [])
+        self.assertEqual(debug["output_chunk_ids"], [])
 
     @patch("app.rag.rerank.create_chat_model")
     def test_falls_back_to_fusion_order_on_invalid_json(self, create_chat_model):

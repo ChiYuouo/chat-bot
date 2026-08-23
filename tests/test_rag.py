@@ -1,7 +1,10 @@
 import unittest
 from unittest.mock import patch
 
-from app.capabilities.rag import _display_page, process_pdf
+from langchain_core.documents import Document
+
+from app.capabilities.rag import _display_page, _split_structured_documents, process_pdf
+from app.config import Config
 
 
 class RagMetadataTests(unittest.TestCase):
@@ -18,6 +21,27 @@ class RagMetadataTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "未提取到可检索文本"):
             process_pdf(b"%PDF-empty", source_name="empty.pdf")
+
+
+class StructuredChunkTests(unittest.TestCase):
+    def test_preserves_section_title_in_every_child_chunk(self):
+        document = Document(
+            page_content="第一章 总则\n" + "适用范围说明。" * 30 + "\n第二章 年假\n员工年假十天。",
+            metadata={"page": 0},
+        )
+
+        with patch.object(Config, "CHUNK_SIZE", 80), patch.object(Config, "CHUNK_OVERLAP", 10):
+            chunks = _split_structured_documents([document])
+
+        first_section_chunks = [
+            chunk for chunk in chunks if chunk.metadata.get("section_title") == "第一章 总则"
+        ]
+        self.assertGreater(len(first_section_chunks), 1)
+        self.assertTrue(
+            all(chunk.page_content.startswith("第一章 总则") for chunk in first_section_chunks)
+        )
+        self.assertEqual(chunks[-1].metadata["section_title"], "第二章 年假")
+        self.assertIn("员工年假十天", chunks[-1].page_content)
 
 
 if __name__ == "__main__":

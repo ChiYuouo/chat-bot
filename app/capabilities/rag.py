@@ -2,10 +2,12 @@
 
 import hashlib
 import os
+import re
 import tempfile
 import time
 from typing import Any, Dict, List
 
+from langchain_core.documents import Document
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -16,6 +18,77 @@ from app.llm import create_chat_model
 from app.rag import BM25Index, hybrid_retrieve, llm_rerank, rewrite_query
 
 
+_STRUCTURE_HEADING_RE = re.compile(
+    r"^\s*(?:"
+    r"#{1,6}\s+\S+|"
+    r"第[一二三四五六七八九十百千万零〇两\d]+[编章节条款]\s*.*|"
+    r"[一二三四五六七八九十百]+、\s*\S+|"
+    r"\d+(?:\.\d+)*[、.．)]\s*\S+"
+    r")\s*$"
+)
+
+
+def _split_into_sections(document: Any) -> List[Document]:
+    """按 PDF 文本中的章节、条款和编号标题切成结构段。"""
+    text = str(document.page_content).strip()
+    if not text:
+        return []
+
+    sections: List[Document] = []
+    current_lines: List[str] = []
+    current_title: str | None = None
+
+    def flush() -> None:
+        if not current_lines:
+            return
+        content = "\n".join(current_lines).strip()
+        if not content:
+            return
+        metadata = dict(document.metadata)
+        if current_title:
+            metadata["section_title"] = current_title
+        sections.append(Document(page_content=content, metadata=metadata))
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if current_lines and current_lines[-1] != "":
+                current_lines.append("")
+            continue
+        if _STRUCTURE_HEADING_RE.match(line):
+            flush()
+            current_lines = [line]
+            current_title = line
+        else:
+            current_lines.append(line)
+    flush()
+    return sections
+
+
+def _split_structured_documents(documents: List[Any]) -> List[Document]:
+    """先识别文档结构，再在每个结构段内部按长度切分。"""
+    sections = [
+        section
+        for document in documents
+        for section in _split_into_sections(document)
+    ]
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=Config.CHUNK_SIZE,
+        chunk_overlap=Config.CHUNK_OVERLAP,
+        is_separator_regex=True,
+        keep_separator=True,
+        separators=[r"\n{2,}", r"\n", r"(?<=。)", r"(?<=！)", r"(?<=？)", r"(?<=，)", r"\s+", ""],
+    )
+    chunks = splitter.split_documents(sections)
+
+    # 一个章节被切成多个块时，让每个子块都带上章节标题，提升独立检索时的语义完整性。
+    for chunk in chunks:
+        title = chunk.metadata.get("section_title")
+        if title and not chunk.page_content.lstrip().startswith(str(title)):
+            chunk.page_content = f"{title}\n{chunk.page_content}"
+    return chunks
+
+
 def process_pdf(pdf_bytes: bytes, source_name: str = "uploaded.pdf") -> List[Any]:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(pdf_bytes)
@@ -23,14 +96,7 @@ def process_pdf(pdf_bytes: bytes, source_name: str = "uploaded.pdf") -> List[Any
 
     try:
         docs = PyMuPDFLoader(tmp_path).load()
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=Config.CHUNK_SIZE,
-            chunk_overlap=Config.CHUNK_OVERLAP,
-            is_separator_regex=True,
-            keep_separator=False,
-            separators=["(?<=。)", "(?<=！)", "(?<=？)", "(?<=，)", " "],
-        )
-        chunks = splitter.split_documents(docs)
+        chunks = _split_structured_documents(docs)
         if not chunks:
             raise ValueError("PDF 中未提取到可检索文本，请确认 PDF 包含文本内容")
         for index, chunk in enumerate(chunks):
@@ -89,6 +155,7 @@ def rag_answer(
         keyword_index,
         per_route_k=Config.RETRIEVAL_K,
         fusion_k=Config.FUSION_K,
+        original_query=question,
     )
     timings["hybrid_retrieval"] = round((time.perf_counter() - started) * 1000, 1)
 
