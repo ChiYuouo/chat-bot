@@ -7,6 +7,7 @@ import tempfile
 import time
 from typing import Any, Dict, List
 
+import uuid
 from langchain_core.documents import Document
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.embeddings import DashScopeEmbeddings
@@ -117,7 +118,12 @@ def process_pdf(pdf_bytes: bytes, source_name: str = "uploaded.pdf") -> List[Any
 def build_vector_store(chunks: List[Any]) -> Chroma:
     """为一份已切分的文档创建向量库。"""
     embeddings = DashScopeEmbeddings(model=Config.EMBEDDING_MODEL)
-    return Chroma.from_documents(chunks, embeddings)
+    return Chroma.from_documents(
+        chunks,
+        embeddings,
+        ids = [chunk.metadata["chunk_id"] for chunk in chunks],
+        collection_name = f"pdf-{uuid.uuid4().hex}",
+    )
 
 
 def build_keyword_index(chunks: List[Any]) -> BM25Index:
