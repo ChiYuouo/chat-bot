@@ -17,7 +17,6 @@ def _empty_uploaded_files():
         "pdf_chunks": [],
         "pdf_store": None,
         "pdf_keyword_index": None,
-        "pdf_chat_history": [],
         "image_name": None,
         "image_path": None,
         "image_bytes": None,
@@ -43,7 +42,6 @@ def add_pdf_source(
 ) -> None:
     files.setdefault("pdf_sources", {})[source.source_id] = source
     files["pdf_chunks"] = [*(files.get("pdf_chunks") or []), *chunks]
-    files["pdf_chat_history"] = []
     _discard_pdf_indexes(files)
 
 
@@ -59,7 +57,6 @@ def remove_pdf_source(files: Dict[str, Any], source_id: str) -> bool:
         for chunk in files.get("pdf_chunks") or []
         if chunk.metadata.get("source_id") != source_id
     ]
-    files["pdf_chat_history"] = []
     _discard_pdf_indexes(files)
     return True
 

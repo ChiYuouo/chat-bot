@@ -79,7 +79,6 @@ def render_chat_input_area():
             if file:
                 source, chunks = ingest_pdf(file.read(), source_name=file.name)
                 add_pdf_source(st.session_state.uploaded_files, source, chunks)
-                st.session_state.last_intents = []
                 st.session_state.pdf_upload_revision += 1
                 st.session_state.show_pdf = False
                 st.rerun()
