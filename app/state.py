@@ -14,6 +14,7 @@ def _empty_uploaded_files():
         "pdf_chunks": None,
         "pdf_store": None,
         "pdf_keyword_index": None,
+        "pdf_chat_history": [],
         "image_name": None,
         "image_path": None,
         "image_bytes": None,

@@ -70,6 +70,55 @@ class RouterTests(unittest.TestCase):
         self.assertIs(files["pdf_store"], store)
         self.assertIs(files["pdf_keyword_index"], keyword_index)
 
+    @patch("app.router.rag_answer")
+    @patch("app.router.build_keyword_index")
+    @patch("app.router.build_vector_store")
+    @patch("app.router.recognize_intent")
+    def test_pdf_rewrite_uses_only_current_pdf_history(
+        self,
+        recognize_intent,
+        build_vector_store,
+        build_keyword_index,
+        rag_answer,
+    ):
+        recognize_intent.return_value = IntentResult(intent=["rag_qa"], confidence=0.9)
+        build_vector_store.return_value = Mock()
+        build_keyword_index.return_value = Mock()
+        seen_histories = []
+
+        def answer(_question, _store, _keyword_index, history):
+            seen_histories.append(list(history))
+            return {"answer": "当前文档回答", "citations": [], "debug": {}}
+
+        rag_answer.side_effect = answer
+        files = {
+            "csv_df": None,
+            "pdf_chunks": [Mock()],
+            "pdf_store": None,
+            "pdf_keyword_index": None,
+            "pdf_chat_history": [],
+            "image_path": None,
+        }
+        fake_st = _fake_streamlit(files)
+        fake_st.session_state.messages = [
+            {"role": "user", "content": "旧 PDF 的问题"},
+            {"role": "assistant", "content": "旧 PDF 的回答"},
+        ]
+
+        with patch.object(router, "st", fake_st):
+            router.process_user_message("当前 PDF 的问题")
+            router.process_user_message("那具体是多少？")
+
+        self.assertEqual(seen_histories[0], [])
+        self.assertEqual(
+            seen_histories[1],
+            [
+                {"role": "user", "content": "当前 PDF 的问题"},
+                {"role": "assistant", "content": "当前文档回答"},
+            ],
+        )
+        self.assertNotIn("旧 PDF 的问题", str(files["pdf_chat_history"]))
+
 
 if __name__ == "__main__":
     unittest.main()

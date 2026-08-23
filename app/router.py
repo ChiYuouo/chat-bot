@@ -91,13 +91,20 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                             files["pdf_keyword_index"] = build_keyword_index(files["pdf_chunks"])
                     elif files.get("pdf_keyword_index") is None:
                         files["pdf_keyword_index"] = build_keyword_index(files["pdf_chunks"])
+                    pdf_history = files.setdefault("pdf_chat_history", [])
                     with st.spinner("正在改写问题、混合检索并精排..."):
                         result = rag_answer(
                             user_input,
                             files["pdf_store"],
                             files["pdf_keyword_index"],
-                            st.session_state.messages,
+                            pdf_history,
                         )
+                    # 只保存纯粹的 PDF 问答，避免普通聊天和界面文案污染下一轮 Query Rewrite。
+                    pdf_history.extend([
+                        {"role": "user", "content": user_input},
+                        {"role": "assistant", "content": result["answer"]},
+                    ])
+                    files["pdf_chat_history"] = pdf_history[-Config.REWRITE_HISTORY_MESSAGES:]
                     rag_debug = result.get("debug")
                     response_parts.append(f"📚 **RAG 回答**:\n{result['answer']}\n")
                     if result["citations"]:

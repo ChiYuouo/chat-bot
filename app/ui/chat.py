@@ -81,7 +81,10 @@ def render_chat_input_area():
                 st.session_state.uploaded_files["pdf_chunks"] = new_chunks
                 st.session_state.uploaded_files["pdf_store"] = None
                 st.session_state.uploaded_files["pdf_keyword_index"] = None
+                # Query Rewrite 只使用当前 PDF 的问答历史，切换文件时不能沿用旧文档上下文。
+                st.session_state.uploaded_files["pdf_chat_history"] = []
                 st.session_state.uploaded_files["pdf_name"] = file.name
+                st.session_state.last_intents = []
                 st.session_state.show_pdf = False
                 st.rerun()
 
