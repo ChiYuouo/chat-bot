@@ -22,10 +22,14 @@ def llm_rerank(
 
     candidate_text = []
     for item in candidates:
-        page = item.document.metadata.get("display_page", "未知")
         source = item.document.metadata.get("source", "未知文件")
+        modality = item.document.metadata.get("modality", "pdf")
+        if modality == "pdf":
+            location = f"第 {item.document.metadata.get('display_page', '未知')} 页"
+        else:
+            location = "网页资料" if modality == "url" else "文本资料"
         content = item.document.page_content[:Config.RERANK_CHUNK_MAX_CHARS]
-        candidate_text.append(f"[{item.chunk_id}] {source} 第 {page} 页\n{content}")
+        candidate_text.append(f"[{item.chunk_id}] {source} {location}\n{content}")
 
     prompt = f"""你是文档检索精排器。请为每个候选段落评估相关性并排序。
 

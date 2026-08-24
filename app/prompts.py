@@ -10,7 +10,8 @@ INTENT_PROMPT = ChatPromptTemplate.from_messages([
         "支持多意图，intent 只能取 rag_qa、data_agent、vision_extract、general。\n"
         "slots 至少包含 query、file_path、image_path，没有时填 '?'；confidence 是 0~1 的小数。\n"
         "提到数据分析、统计、图表、CSV、表格时使用 data_agent；提到图片、发票、截图、识别时使用 vision_extract；"
-        "提到文档、PDF、手册、制度、知识库、文档查询时使用 rag_qa；其他情况使用 general。",
+        "提到文档、PDF、手册、制度、知识库、网页资料、文本资料或资料查询时使用 rag_qa；"
+        "其他情况使用 general。",
     ),
     (
         "human",

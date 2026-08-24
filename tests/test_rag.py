@@ -3,26 +3,45 @@ from unittest.mock import patch
 
 from langchain_core.documents import Document
 
-from app.capabilities.rag import _display_page, _split_structured_documents, process_pdf
+from app.ingestion import (
+    _split_structured_documents,
+    display_page,
+    process_pdf,
+    source_location,
+)
 from app.config import Config
 
 
 class RagMetadataTests(unittest.TestCase):
     def test_converts_zero_based_pymupdf_page(self):
-        self.assertEqual(_display_page({"page": 0}), 1)
-        self.assertEqual(_display_page({"page": 4}), 5)
+        self.assertEqual(display_page({"page": 0}), 1)
+        self.assertEqual(display_page({"page": 4}), 5)
 
     def test_keeps_fallback_page_number(self):
-        self.assertEqual(_display_page({"page_number": 3}), 3)
+        self.assertEqual(display_page({"page_number": 3}), 3)
 
-    @patch("app.capabilities.rag.PyMuPDFLoader")
+    def test_formats_locations_for_each_source_type(self):
+        self.assertEqual(
+            source_location({"source": "手册.pdf", "modality": "pdf", "display_page": 2}),
+            "手册.pdf，第 2 页",
+        )
+        self.assertEqual(
+            source_location({"source": "会议纪要", "modality": "text"}),
+            "会议纪要，文本资料",
+        )
+        self.assertEqual(
+            source_location({"source": "公司制度", "modality": "url"}),
+            "公司制度，网页资料",
+        )
+
+    @patch("app.ingestion.PyMuPDFLoader")
     def test_rejects_pdf_without_extractable_text(self, loader_class):
         loader_class.return_value.load.return_value = []
 
         with self.assertRaisesRegex(ValueError, "未提取到可检索文本"):
             process_pdf(b"%PDF-empty", source_name="empty.pdf")
 
-    @patch("app.capabilities.rag.PyMuPDFLoader")
+    @patch("app.ingestion.PyMuPDFLoader")
     def test_adds_source_metadata_to_every_chunk(self, loader_class):
         loader_class.return_value.load.return_value = [
             Document(page_content="第一章 年假\n员工年假十天。", metadata={"page": 0})

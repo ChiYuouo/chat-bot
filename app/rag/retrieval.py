@@ -72,7 +72,7 @@ def reciprocal_rank_fusion(
 def _chunk_id(document: Any) -> str:
     chunk_id = document.metadata.get("chunk_id")
     if not chunk_id:
-        raise ValueError("文档块缺少 chunk_id，请先通过 process_pdf 处理文档")
+        raise ValueError("资料块缺少 chunk_id，请先通过资料入库流程处理")
     return str(chunk_id)
 
 

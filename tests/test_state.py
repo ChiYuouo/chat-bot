@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from app.models import KnowledgeSource
-from app.state import _empty_uploaded_files, add_pdf_source, remove_pdf_source
+from app.state import _empty_uploaded_files, add_source, remove_source
 
 
 def _chunk(source_id, chunk_id):
@@ -13,8 +13,8 @@ def _chunk(source_id, chunk_id):
     )
 
 
-class PdfSourceStateTests(unittest.TestCase):
-    def test_keeps_chunks_from_multiple_sources(self):
+class KnowledgeSourceStateTests(unittest.TestCase):
+    def test_keeps_chunks_from_multiple_modalities(self):
         files = _empty_uploaded_files()
         first = KnowledgeSource(
             source_id="source-a",
@@ -24,17 +24,17 @@ class PdfSourceStateTests(unittest.TestCase):
         )
         second = KnowledgeSource(
             source_id="source-b",
-            name="B.pdf",
-            modality="pdf",
+            name="会议纪要",
+            modality="text",
             chunk_count=1,
         )
 
-        add_pdf_source(files, first, [_chunk("source-a", "a-1")])
-        add_pdf_source(files, second, [_chunk("source-b", "b-1")])
+        add_source(files, first, [_chunk("source-a", "a-1")])
+        add_source(files, second, [_chunk("source-b", "b-1")])
 
-        self.assertEqual(list(files["pdf_sources"]), ["source-a", "source-b"])
+        self.assertEqual(list(files["knowledge_sources"]), ["source-a", "source-b"])
         self.assertEqual(
-            [chunk.metadata["chunk_id"] for chunk in files["pdf_chunks"]],
+            [chunk.metadata["chunk_id"] for chunk in files["knowledge_chunks"]],
             ["a-1", "b-1"],
         )
 
@@ -52,23 +52,23 @@ class PdfSourceStateTests(unittest.TestCase):
             modality="pdf",
             chunk_count=1,
         )
-        add_pdf_source(files, first, [_chunk("source-a", "a-1")])
-        add_pdf_source(files, second, [_chunk("source-b", "b-1")])
+        add_source(files, first, [_chunk("source-a", "a-1")])
+        add_source(files, second, [_chunk("source-b", "b-1")])
         store = Mock()
-        files["pdf_store"] = store
-        files["pdf_keyword_index"] = Mock()
+        files["knowledge_store"] = store
+        files["knowledge_keyword_index"] = Mock()
 
-        removed = remove_pdf_source(files, "source-a")
+        removed = remove_source(files, "source-a")
 
         self.assertTrue(removed)
-        self.assertEqual(list(files["pdf_sources"]), ["source-b"])
+        self.assertEqual(list(files["knowledge_sources"]), ["source-b"])
         self.assertEqual(
-            [chunk.metadata["chunk_id"] for chunk in files["pdf_chunks"]],
+            [chunk.metadata["chunk_id"] for chunk in files["knowledge_chunks"]],
             ["b-1"],
         )
         store.delete_collection.assert_called_once_with()
-        self.assertIsNone(files["pdf_store"])
-        self.assertIsNone(files["pdf_keyword_index"])
+        self.assertIsNone(files["knowledge_store"])
+        self.assertIsNone(files["knowledge_keyword_index"])
 
 
 if __name__ == "__main__":

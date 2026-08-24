@@ -5,10 +5,10 @@ import tempfile
 import pandas as pd
 import streamlit as st
 
-from app.capabilities.rag import ingest_pdf
+from app.ingestion import ingest_pdf, ingest_text, ingest_url
 from app.router import process_user_message
 from app.state import (
-    add_pdf_source,
+    add_source,
     clear_uploaded_files,
     init_session_state,
     remove_uploaded_image_temp_file,
@@ -16,8 +16,18 @@ from app.state import (
 from app.ui.sidebar import render_sidebar
 
 
+_INPUT_PANELS = ("pdf", "text", "url", "csv", "img")
+
+
+def _toggle_input_panel(selected: str) -> None:
+    should_open = not st.session_state.get(f"show_{selected}", False)
+    for panel in _INPUT_PANELS:
+        st.session_state[f"show_{panel}"] = panel == selected and should_open
+    st.rerun()
+
+
 def render_chat_input_area():
-    for key in ["csv", "pdf", "img"]:
+    for key in _INPUT_PANELS:
         if f"show_{key}" not in st.session_state:
             st.session_state[f"show_{key}"] = False
 
@@ -25,40 +35,36 @@ def render_chat_input_area():
     uploaded_names = []
     if uploaded.get("csv_df") is not None:
         uploaded_names.append("📊CSV")
-    pdf_count = len(uploaded.get("pdf_sources") or {})
-    if pdf_count:
-        uploaded_names.append(f"📚PDF × {pdf_count}")
+    source_count = len(uploaded.get("knowledge_sources") or {})
+    if source_count:
+        uploaded_names.append(f"📚资料 × {source_count}")
     if uploaded.get("image_path") is not None:
         uploaded_names.append("🖼️图片")
     if uploaded_names:
-        st.caption(f"已上传: {' | '.join(uploaded_names)}")
+        st.caption(f"当前资料: {' | '.join(uploaded_names)}")
 
     with st.container(border=True):
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1:
-            if st.button("📄 CSV", use_container_width=True, type="secondary"):
-                st.session_state.show_csv = not st.session_state.get("show_csv", False)
-                st.session_state.show_pdf = False
-                st.session_state.show_img = False
-                st.rerun()
-        with c2:
             if st.button("📚 PDF", use_container_width=True, type="secondary"):
-                st.session_state.show_pdf = not st.session_state.get("show_pdf", False)
-                st.session_state.show_csv = False
-                st.session_state.show_img = False
-                st.rerun()
+                _toggle_input_panel("pdf")
+        with c2:
+            if st.button("📝 文本", use_container_width=True, type="secondary"):
+                _toggle_input_panel("text")
         with c3:
-            if st.button("🖼️ 图片", use_container_width=True, type="secondary"):
-                st.session_state.show_img = not st.session_state.get("show_img", False)
-                st.session_state.show_csv = False
-                st.session_state.show_pdf = False
-                st.rerun()
+            if st.button("🔗 网页", use_container_width=True, type="secondary"):
+                _toggle_input_panel("url")
         with c4:
+            if st.button("📄 CSV", use_container_width=True, type="secondary"):
+                _toggle_input_panel("csv")
+        with c5:
+            if st.button("🖼️ 图片", use_container_width=True, type="secondary"):
+                _toggle_input_panel("img")
+        with c6:
             if st.button("🗑️ 清空", use_container_width=True, type="secondary"):
                 clear_uploaded_files()
-                st.session_state.show_csv = False
-                st.session_state.show_pdf = False
-                st.session_state.show_img = False
+                for panel in _INPUT_PANELS:
+                    st.session_state[f"show_{panel}"] = False
                 st.rerun()
 
         if st.session_state.get("show_csv"):
@@ -77,11 +83,46 @@ def render_chat_input_area():
                 key=f"up_pdf_{revision}",
             )
             if file:
-                source, chunks = ingest_pdf(file.read(), source_name=file.name)
-                add_pdf_source(st.session_state.uploaded_files, source, chunks)
-                st.session_state.pdf_upload_revision += 1
-                st.session_state.show_pdf = False
-                st.rerun()
+                try:
+                    source, chunks = ingest_pdf(file.read(), source_name=file.name)
+                except Exception as exc:
+                    st.error(str(exc))
+                else:
+                    add_source(st.session_state.uploaded_files, source, chunks)
+                    st.session_state.pdf_upload_revision += 1
+                    st.session_state.show_pdf = False
+                    st.rerun()
+
+        if st.session_state.get("show_text"):
+            with st.form("add_text_source"):
+                title = st.text_input("资料标题", max_chars=160)
+                text = st.text_area("资料正文", height=180)
+                submitted = st.form_submit_button("添加文本资料")
+            if submitted:
+                try:
+                    source, chunks = ingest_text(title, text)
+                except ValueError as exc:
+                    st.error(str(exc))
+                else:
+                    add_source(st.session_state.uploaded_files, source, chunks)
+                    st.session_state.show_text = False
+                    st.rerun()
+
+        if st.session_state.get("show_url"):
+            with st.form("add_url_source"):
+                title = st.text_input("资料标题（可选）", max_chars=160)
+                url = st.text_input("网页 URL", placeholder="https://example.com/article")
+                submitted = st.form_submit_button("抓取并添加")
+            if submitted:
+                try:
+                    with st.spinner("正在抓取并解析网页..."):
+                        source, chunks = ingest_url(url, title)
+                except ValueError as exc:
+                    st.error(str(exc))
+                else:
+                    add_source(st.session_state.uploaded_files, source, chunks)
+                    st.session_state.show_url = False
+                    st.rerun()
 
         if st.session_state.get("show_img"):
             file = st.file_uploader("选择图片", type=["png", "jpg", "jpeg"], key="up_img")

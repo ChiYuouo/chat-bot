@@ -4,7 +4,10 @@ import os
 
 import streamlit as st
 
-from app.state import clear_uploaded_files, remove_pdf_source
+from app.state import clear_uploaded_files, remove_source
+
+
+_SOURCE_ICONS = {"pdf": "📚", "text": "📝", "url": "🔗"}
 
 
 def render_sidebar() -> None:
@@ -19,19 +22,20 @@ def render_sidebar() -> None:
             os.environ["DASHSCOPE_API_KEY"] = api_key
 
         st.divider()
-        st.header("📂 已上传文件")
+        st.header("📂 已添加资料")
         files = st.session_state.uploaded_files
         has_files = False
         if files.get("csv_df") is not None:
             st.success(f"📊 CSV: {files.get('csv_name', 'unknown')}")
             has_files = True
-        for source in (files.get("pdf_sources") or {}).values():
+        for source in (files.get("knowledge_sources") or {}).values():
             source_col, delete_col = st.columns([5, 1])
             with source_col:
-                st.success(f"📚 {source.name} · {source.chunk_count} 块")
+                icon = _SOURCE_ICONS.get(source.modality, "📄")
+                st.success(f"{icon} {source.name} · {source.chunk_count} 块")
             with delete_col:
                 if st.button("✕", key=f"delete_{source.source_id}", help="删除该资料"):
-                    remove_pdf_source(files, source.source_id)
+                    remove_source(files, source.source_id)
                     st.session_state.last_intents = []
                     st.rerun()
             has_files = True
@@ -39,7 +43,7 @@ def render_sidebar() -> None:
             st.success(f"🖼️ 图片: {files.get('image_name', 'unknown')}")
             has_files = True
         if not has_files:
-            st.info("暂无文件，请在底部聊天区上传")
+            st.info("暂无资料，请在底部聊天区添加")
 
         st.divider()
         col1, col2 = st.columns(2)

@@ -32,6 +32,11 @@ def _looks_like_contextual_follow_up(text: str) -> bool:
     )
 
 
+def _format_citation(citation: Dict[str, Any]) -> str:
+    url = f" · {citation['url']}" if citation.get("url") else ""
+    return f"  - {citation['location']}{url}: {citation['content'][:50]}..."
+
+
 def process_user_message(user_input: str) -> Dict[str, Any]:
     files = st.session_state.uploaded_files
     chart = None
@@ -64,12 +69,12 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
     if (
         intents == ["general"]
         and "rag_qa" in previous_intents
-        and bool(files.get("pdf_chunks"))
+        and bool(files.get("knowledge_chunks"))
         and _looks_like_contextual_follow_up(user_input)
     ):
         intents = ["rag_qa"]
         fallback_reason = None
-        routing_note = "识别为上一轮文档问答的追问"
+        routing_note = "识别为上一轮知识库问答的追问"
 
     intent_str = ", ".join(get_intent_badge(intent) for intent in intents)
     confidence_str = f"{intent_result.confidence:.0%}"
@@ -82,15 +87,21 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
     for intent in intents:
         try:
             if intent == "rag_qa":
-                if not files.get("pdf_chunks"):
-                    response_parts.append("⚠️ **RAG 问答**需要先上传 PDF 文件（在左侧边栏上传）\n")
+                if not files.get("knowledge_chunks"):
+                    response_parts.append("⚠️ **RAG 问答**需要先添加知识库资料\n")
                 else:
-                    if files.get("pdf_store") is None:
-                        with st.spinner("首次构建文档检索索引..."):
-                            files["pdf_store"] = build_vector_store(files["pdf_chunks"])
-                            files["pdf_keyword_index"] = build_keyword_index(files["pdf_chunks"])
-                    elif files.get("pdf_keyword_index") is None:
-                        files["pdf_keyword_index"] = build_keyword_index(files["pdf_chunks"])
+                    if files.get("knowledge_store") is None:
+                        with st.spinner("首次构建知识库检索索引..."):
+                            files["knowledge_store"] = build_vector_store(
+                                files["knowledge_chunks"]
+                            )
+                            files["knowledge_keyword_index"] = build_keyword_index(
+                                files["knowledge_chunks"]
+                            )
+                    elif files.get("knowledge_keyword_index") is None:
+                        files["knowledge_keyword_index"] = build_keyword_index(
+                            files["knowledge_chunks"]
+                        )
                     rag_history = (
                         st.session_state.messages[-2:]
                         if "rag_qa" in previous_intents
@@ -99,18 +110,14 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                     with st.spinner("正在改写问题、混合检索并精排..."):
                         result = rag_answer(
                             user_input,
-                            files["pdf_store"],
-                            files["pdf_keyword_index"],
+                            files["knowledge_store"],
+                            files["knowledge_keyword_index"],
                             rag_history,
                         )
                     rag_debug = result.get("debug")
                     response_parts.append(f"📚 **RAG 回答**:\n{result['answer']}\n")
                     if result["citations"]:
-                        citations = "\n".join(
-                            f"  - {citation['source']} · 第 {citation['page']} 页: "
-                            f"{citation['content'][:50]}..."
-                            for citation in result["citations"]
-                        )
+                        citations = "\n".join(map(_format_citation, result["citations"]))
                         response_parts.append(f"\n🔎 **引用来源**:\n{citations}\n")
 
             elif intent == "data_agent":
@@ -151,4 +158,3 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         "chart": chart,
         "rag_debug": rag_debug,
     }
-

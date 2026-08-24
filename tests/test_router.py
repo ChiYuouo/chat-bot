@@ -20,20 +20,20 @@ class RouterTests(unittest.TestCase):
         self.assertFalse(router._looks_like_contextual_follow_up("请帮我写一封会议邀请邮件"))
 
     @patch("app.router.recognize_intent")
-    def test_rag_requires_at_least_one_pdf_chunk(self, recognize_intent):
+    def test_rag_requires_at_least_one_knowledge_chunk(self, recognize_intent):
         recognize_intent.return_value = IntentResult(intent=["rag_qa"], confidence=0.9)
         files = {
             "csv_df": None,
-            "pdf_chunks": [],
-            "pdf_store": None,
-            "pdf_keyword_index": None,
+            "knowledge_chunks": [],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
             "image_path": None,
         }
 
         with patch.object(router, "st", _fake_streamlit(files)):
             result = router.process_user_message("文档内容是什么？")
 
-        self.assertIn("需要先上传 PDF", result["content"])
+        self.assertIn("需要先添加知识库资料", result["content"])
 
     @patch("app.router.general_answer", return_value="普通回答")
     @patch("app.router.recognize_intent")
@@ -42,7 +42,7 @@ class RouterTests(unittest.TestCase):
             intent=["data_agent"],
             confidence=0.2,
         )
-        files = {"csv_df": object(), "pdf_chunks": None, "image_path": None}
+        files = {"csv_df": object(), "knowledge_chunks": [], "image_path": None}
 
         with patch.object(router, "st", _fake_streamlit(files)):
             result = router.process_user_message("帮我分析")
@@ -55,7 +55,7 @@ class RouterTests(unittest.TestCase):
     @patch("app.router.build_keyword_index")
     @patch("app.router.build_vector_store")
     @patch("app.router.recognize_intent")
-    def test_pdf_vector_store_is_built_only_once(
+    def test_knowledge_indexes_are_built_only_once(
         self,
         recognize_intent,
         build_vector_store,
@@ -70,9 +70,9 @@ class RouterTests(unittest.TestCase):
         rag_answer.return_value = {"answer": "文档回答", "citations": [], "debug": {}}
         files = {
             "csv_df": None,
-            "pdf_chunks": [Mock()],
-            "pdf_store": None,
-            "pdf_keyword_index": None,
+            "knowledge_chunks": [Mock()],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
             "image_path": None,
         }
 
@@ -80,17 +80,17 @@ class RouterTests(unittest.TestCase):
             router.process_user_message("文档内容是什么？")
             router.process_user_message("再总结一下")
 
-        build_vector_store.assert_called_once_with(files["pdf_chunks"])
-        build_keyword_index.assert_called_once_with(files["pdf_chunks"])
+        build_vector_store.assert_called_once_with(files["knowledge_chunks"])
+        build_keyword_index.assert_called_once_with(files["knowledge_chunks"])
         self.assertEqual(rag_answer.call_count, 2)
-        self.assertIs(files["pdf_store"], store)
-        self.assertIs(files["pdf_keyword_index"], keyword_index)
+        self.assertIs(files["knowledge_store"], store)
+        self.assertIs(files["knowledge_keyword_index"], keyword_index)
 
     @patch("app.router.rag_answer")
     @patch("app.router.build_keyword_index")
     @patch("app.router.build_vector_store")
     @patch("app.router.recognize_intent")
-    def test_pdf_rewrite_uses_previous_global_turn_after_rag(
+    def test_knowledge_rewrite_uses_previous_global_turn_after_rag(
         self,
         recognize_intent,
         build_vector_store,
@@ -109,9 +109,9 @@ class RouterTests(unittest.TestCase):
         rag_answer.side_effect = answer
         files = {
             "csv_df": None,
-            "pdf_chunks": [Mock()],
-            "pdf_store": None,
-            "pdf_keyword_index": None,
+            "knowledge_chunks": [Mock()],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
             "image_path": None,
         }
         fake_st = _fake_streamlit(files)

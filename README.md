@@ -5,8 +5,8 @@
 ## 功能特性
 
 - **智能意图路由**：识别单个或多个任务，并分发到对应能力模块
-- **多文档知识库**：支持多个 PDF 共存、跨文档检索、按来源删除和文件级引用
-- **RAG 2.0 问答**：结构化切分、原问题与改写问题多路召回、RRF 混排、带相关性阈值的 LLM 精排，并标注引用页码
+- **多来源知识库**：支持 PDF、粘贴文本和网页共存、跨来源检索、按来源删除和精确引用
+- **RAG 2.0 问答**：结构化切分、原问题与改写问题多路召回、RRF 混排、带相关性阈值的 LLM 精排
 - **CSV 数据分析**：根据自然语言生成 Pandas 代码、统计结果与图表
 - **图片内容识别**：理解图片并返回结构化信息
 - **多轮通用对话**：保留最近的会话上下文，支持连续提问
@@ -19,7 +19,7 @@ flowchart LR
     UI --> I[意图识别<br/>Qwen Turbo]
     I --> R{能力路由}
     R --> G[通用对话<br/>Qwen Max]
-    R --> D[PDF RAG 2.0<br/>Rewrite + Hybrid Search + Rerank]
+    R --> D[多来源 RAG 2.0<br/>PDF + Text + URL]
     R --> A[CSV 数据分析<br/>Pandas + Matplotlib]
     R --> V[图片识别<br/>Qwen VL Max]
     G & D & A & V --> UI
@@ -54,13 +54,14 @@ python -m pip install -r requirements.txt
 streamlit run chatbot.py
 ```
 
-浏览器打开 `http://localhost:8501`，在左侧边栏填写 API Key，即可开始对话或上传 PDF、CSV、图片文件。
+浏览器打开 `http://localhost:8501`，在侧边栏填写 API Key，即可添加 PDF、文本、网页、CSV 或图片资料。
 
 ## 使用示例
 
 | 场景 | 示例问题 |
 | --- | --- |
 | 文档问答 | `对比员工手册和考勤制度中的年假规定。` |
+| 网页问答 | `刚刚添加的公司制度网页中有哪些报销要求？` |
 | 数据分析 | `统计各类别数量，并生成条形图。` |
 | 图片识别 | `提取这张发票中的金额和日期。` |
 | 普通对话 | `帮我写一封简短的会议邀请邮件。` |
@@ -71,6 +72,7 @@ streamlit run chatbot.py
 chatbot.py              # 应用入口
 app/
 ├── capabilities/       # RAG、数据分析、视觉与通用对话能力
+├── ingestion.py        # PDF、文本和网页资料解析
 ├── ui/                 # Streamlit 页面与侧边栏
 ├── intent.py           # 意图识别
 ├── router.py           # 能力路由
@@ -80,7 +82,7 @@ app/
 
 ## 技术栈
 
-`Python` · `Streamlit` · `LangChain` · `DashScope` · `ChromaDB` · `Pandas` · `Matplotlib`
+`Python` · `Streamlit` · `LangChain` · `DashScope` · `ChromaDB` · `HTTPX` · `Pandas` · `Matplotlib`
 
 ## RAG检索链路
 
@@ -91,10 +93,10 @@ app/
   → 改写问题：向量 Top 15 + 中文 BM25 Top 15
   → RRF 混排 Top 10
   → Qwen Listwise 相关性评分（默认阈值 0.55）
-  → Top 4 生成答案并标注页码
+  → Top 4 生成答案并标注来源
 ```
 
-PDF 会先按章节、条款和编号标题进行结构化切分，再在结构段内部按长度生成 Chunk；同一章节的子块都会保留章节标题。聊天界面的“查看 RAG 检索过程”会展示改写结果、多路召回、混排、相关性分数、阈值过滤结果和各阶段耗时。Rewrite、精排失败时都会自动降级，不会中断问答。
+PDF、粘贴文本和网页正文会进入同一个知识库。资料先按章节、条款和编号标题进行结构化切分，再在结构段内部按长度生成 Chunk；PDF 额外保留页码，网页保留原始 URL。聊天界面的“查看 RAG 检索过程”会展示改写结果、多路召回、混排、相关性分数、阈值过滤结果和各阶段耗时。Rewrite、精排失败时都会自动降级，不会中断问答。
 
 ### RRF 混排
 
