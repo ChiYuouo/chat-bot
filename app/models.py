@@ -16,6 +16,7 @@ class KnowledgeSource(BaseModel):
     modality: SourceModality
     chunk_count: int = Field(ge=1)
     url: Optional[str] = None
+    content_hash: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
 
 

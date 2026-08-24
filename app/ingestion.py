@@ -8,13 +8,15 @@ import socket
 import tempfile
 import uuid
 from html.parser import HTMLParser
-from typing import Any, List
+from io import BytesIO
+from typing import Any, Collection, List
 from urllib.parse import urljoin, urlparse
 
 import httpx
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from PIL import Image, UnidentifiedImageError
 
 from app.capabilities.vision import extract_image_content
 from app.config import Config
@@ -41,11 +43,8 @@ _STRUCTURE_HEADING_RE = re.compile(
     r"\d+(?:\.\d+)*[、.．)]\s*\S+"
     r")\s*$"
 )
-_IMAGE_SIGNATURES = {
-    "image/jpeg": (b"\xff\xd8\xff",),
-    "image/png": (b"\x89PNG\r\n\x1a\n",),
-}
 _IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png"}
+_IMAGE_FORMAT_MEDIA_TYPES = {"JPEG": "image/jpeg", "PNG": "image/png"}
 
 
 class _ReadableHtmlParser(HTMLParser):
@@ -237,15 +236,31 @@ def ingest_text(title: str, text: str) -> tuple[KnowledgeSource, List[Document]]
 
 
 def _detect_image_media_type(image_bytes: bytes) -> str:
-    for media_type, signatures in _IMAGE_SIGNATURES.items():
-        if any(image_bytes.startswith(signature) for signature in signatures):
+    """完整解码图片，拒绝伪造、损坏或像素数量过大的文件。"""
+    try:
+        with Image.open(BytesIO(image_bytes)) as image:
+            media_type = _IMAGE_FORMAT_MEDIA_TYPES.get(str(image.format).upper())
+            if media_type is None:
+                raise ValueError("只支持有效的 PNG、JPG 或 JPEG 图片")
+            width, height = image.size
+            if width <= 0 or height <= 0:
+                raise ValueError("图片尺寸无效")
+            if width * height > Config.IMAGE_SOURCE_MAX_PIXELS:
+                raise ValueError(
+                    f"图片像素不能超过 {Config.IMAGE_SOURCE_MAX_PIXELS:,}"
+                )
+            image.load()
             return media_type
-    raise ValueError("只支持有效的 PNG、JPG 或 JPEG 图片")
+    except ValueError:
+        raise
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+        raise ValueError("只支持有效的、未损坏的 PNG、JPG 或 JPEG 图片") from exc
 
 
 def ingest_image(
     image_bytes: bytes,
     source_name: str,
+    existing_content_hashes: Collection[str] | None = None,
 ) -> tuple[KnowledgeSource, List[Document]]:
     """通过视觉模型提取图片内容，并转换为统一知识库 Chunk。"""
     source_name = source_name.strip()
@@ -256,6 +271,10 @@ def ingest_image(
     if len(image_bytes) > Config.IMAGE_SOURCE_MAX_BYTES:
         max_mb = Config.IMAGE_SOURCE_MAX_BYTES // (1024 * 1024)
         raise ValueError(f"图片不能超过 {max_mb} MB")
+
+    content_hash = hashlib.sha256(image_bytes).hexdigest()
+    if content_hash in (existing_content_hashes or ()):
+        raise ValueError("该图片已存在于知识库中，请勿重复添加")
 
     media_type = _detect_image_media_type(image_bytes)
     with tempfile.NamedTemporaryFile(
@@ -274,7 +293,7 @@ def ingest_image(
     documents = [
         Document(
             page_content=extracted["text"],
-            metadata={"media_type": media_type},
+            metadata={"media_type": media_type, "content_hash": content_hash},
         )
     ]
     chunks = _split_structured_documents(documents)
@@ -286,6 +305,7 @@ def ingest_image(
         name=source_name,
         modality="image",
         chunk_count=len(chunks),
+        content_hash=content_hash,
     )
     return source, chunks
 

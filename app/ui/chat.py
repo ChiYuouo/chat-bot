@@ -135,9 +135,21 @@ def render_chat_input_area():
                 key=f"up_image_source_{revision}",
             )
             if file:
+                image_bytes = file.read()
+                existing_hashes = {
+                    source_hash
+                    for source in (
+                        st.session_state.uploaded_files.get("knowledge_sources") or {}
+                    ).values()
+                    if (source_hash := getattr(source, "content_hash", None))
+                }
                 try:
                     with st.spinner("正在提取图片内容并加入知识库..."):
-                        source, chunks = ingest_image(file.read(), source_name=file.name)
+                        source, chunks = ingest_image(
+                            image_bytes,
+                            source_name=file.name,
+                            existing_content_hashes=existing_hashes,
+                        )
                 except Exception as exc:
                     st.error(str(exc))
                 else:

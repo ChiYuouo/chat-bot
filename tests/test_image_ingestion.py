@@ -1,7 +1,10 @@
 import unittest
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+
+from PIL import Image
 
 from app.capabilities.vision import extract_image_content
 from app.config import Config
@@ -9,7 +12,13 @@ from app.ingestion import ingest_image
 from app.source_utils import build_retrieval_documents, source_location
 
 
-_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"test-image"
+def _make_image_bytes(size=(2, 2), image_format="PNG"):
+    output = BytesIO()
+    Image.new("RGB", size, color="white").save(output, format=image_format)
+    return output.getvalue()
+
+
+_PNG_BYTES = _make_image_bytes()
 
 
 class ImageSourceTests(unittest.TestCase):
@@ -30,6 +39,8 @@ class ImageSourceTests(unittest.TestCase):
         )
         self.assertTrue(all(chunk.metadata["modality"] == "image" for chunk in chunks))
         self.assertTrue(all(chunk.metadata["media_type"] == "image/png" for chunk in chunks))
+        self.assertTrue(all(chunk.metadata["content_hash"] for chunk in chunks))
+        self.assertEqual(source.content_hash, chunks[0].metadata["content_hash"])
         self.assertIn("季度销售额", chunks[0].page_content)
 
         retrieval_document = build_retrieval_documents(chunks)[0]
@@ -43,10 +54,45 @@ class ImageSourceTests(unittest.TestCase):
         extract_image_content.assert_not_called()
 
     @patch("app.ingestion.extract_image_content")
+    def test_rejects_corrupted_image_with_valid_header(self, extract_image_content):
+        corrupted = b"\x89PNG\r\n\x1a\n" + b"corrupted"
+
+        with self.assertRaisesRegex(ValueError, "未损坏"):
+            ingest_image(corrupted, "损坏图片.png")
+
+        extract_image_content.assert_not_called()
+
+    @patch("app.ingestion.extract_image_content")
     def test_rejects_oversized_image_before_model_call(self, extract_image_content):
         with patch.object(Config, "IMAGE_SOURCE_MAX_BYTES", 8):
             with self.assertRaisesRegex(ValueError, "不能超过"):
                 ingest_image(_PNG_BYTES, "large.png")
+
+        extract_image_content.assert_not_called()
+
+    @patch("app.ingestion.extract_image_content")
+    def test_rejects_image_over_pixel_limit(self, extract_image_content):
+        with patch.object(Config, "IMAGE_SOURCE_MAX_PIXELS", 3):
+            with self.assertRaisesRegex(ValueError, "图片像素不能超过"):
+                ingest_image(_make_image_bytes(size=(2, 2)), "large-pixels.png")
+
+        extract_image_content.assert_not_called()
+
+    @patch("app.ingestion.extract_image_content")
+    def test_rejects_duplicate_before_model_call(self, extract_image_content):
+        extract_image_content.return_value = {
+            "text": "图片描述\n组织架构图",
+            "contract": {},
+        }
+        source, _ = ingest_image(_PNG_BYTES, "组织架构.png")
+        extract_image_content.reset_mock()
+
+        with self.assertRaisesRegex(ValueError, "已存在"):
+            ingest_image(
+                _PNG_BYTES,
+                "同一图片的另一个名称.png",
+                existing_content_hashes={source.content_hash},
+            )
 
         extract_image_content.assert_not_called()
 
