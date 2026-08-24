@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 IntentName = Literal["rag_qa", "data_agent", "vision_extract", "general"]
-SourceModality = Literal["pdf", "text", "url"]
+SourceModality = Literal["pdf", "text", "url", "image"]
 
 
 class KnowledgeSource(BaseModel):

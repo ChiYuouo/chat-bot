@@ -16,6 +16,7 @@ from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from app.capabilities.vision import extract_image_content
 from app.config import Config
 from app.models import KnowledgeSource, SourceModality
 from app.source_utils import display_page
@@ -40,6 +41,11 @@ _STRUCTURE_HEADING_RE = re.compile(
     r"\d+(?:\.\d+)*[、.．)]\s*\S+"
     r")\s*$"
 )
+_IMAGE_SIGNATURES = {
+    "image/jpeg": (b"\xff\xd8\xff",),
+    "image/png": (b"\x89PNG\r\n\x1a\n",),
+}
+_IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png"}
 
 
 class _ReadableHtmlParser(HTMLParser):
@@ -228,6 +234,60 @@ def _ingest_textual_source(
 
 def ingest_text(title: str, text: str) -> tuple[KnowledgeSource, List[Document]]:
     return _ingest_textual_source(title, text, "text")
+
+
+def _detect_image_media_type(image_bytes: bytes) -> str:
+    for media_type, signatures in _IMAGE_SIGNATURES.items():
+        if any(image_bytes.startswith(signature) for signature in signatures):
+            return media_type
+    raise ValueError("只支持有效的 PNG、JPG 或 JPEG 图片")
+
+
+def ingest_image(
+    image_bytes: bytes,
+    source_name: str,
+) -> tuple[KnowledgeSource, List[Document]]:
+    """通过视觉模型提取图片内容，并转换为统一知识库 Chunk。"""
+    source_name = source_name.strip()
+    if not source_name:
+        raise ValueError("图片文件名不能为空")
+    if not image_bytes:
+        raise ValueError("图片内容不能为空")
+    if len(image_bytes) > Config.IMAGE_SOURCE_MAX_BYTES:
+        max_mb = Config.IMAGE_SOURCE_MAX_BYTES // (1024 * 1024)
+        raise ValueError(f"图片不能超过 {max_mb} MB")
+
+    media_type = _detect_image_media_type(image_bytes)
+    with tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=_IMAGE_SUFFIXES[media_type],
+    ) as tmp:
+        tmp.write(image_bytes)
+        tmp_path = tmp.name
+
+    try:
+        extracted = extract_image_content(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    source_id = f"source-{uuid.uuid4().hex[:12]}"
+    documents = [
+        Document(
+            page_content=extracted["text"],
+            metadata={"media_type": media_type},
+        )
+    ]
+    chunks = _split_structured_documents(documents)
+    if not chunks:
+        raise ValueError("图片中未提取到可检索内容")
+    _attach_source_metadata(chunks, source_id, source_name, "image")
+    source = KnowledgeSource(
+        source_id=source_id,
+        name=source_name,
+        modality="image",
+        chunk_count=len(chunks),
+    )
+    return source, chunks
 
 
 def _validate_fetch_url(url: str) -> None:

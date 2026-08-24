@@ -8,7 +8,7 @@ from app.knowledge_base import remove_source
 from app.state import clear_uploaded_files
 
 
-_SOURCE_ICONS = {"pdf": "📚", "text": "📝", "url": "🔗"}
+_SOURCE_ICONS = {"pdf": "📚", "text": "📝", "url": "🔗", "image": "🖼️"}
 
 
 def render_sidebar() -> None:
@@ -41,7 +41,7 @@ def render_sidebar() -> None:
                     st.rerun()
             has_files = True
         if files.get("image_path") is not None:
-            st.success(f"🖼️ 图片: {files.get('image_name', 'unknown')}")
+            st.success(f"👁️ 临时识图: {files.get('image_name', 'unknown')}")
             has_files = True
         if not has_files:
             st.info("暂无资料，请在底部聊天区添加")

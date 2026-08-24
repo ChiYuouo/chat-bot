@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, List
 from langchain_core.documents import Document
 
 
-_MODALITY_NAMES = {"pdf": "PDF", "text": "文本", "url": "网页"}
+_MODALITY_NAMES = {"pdf": "PDF", "text": "文本", "url": "网页", "image": "图片"}
 _RETRIEVAL_PREFIX_CHARS = "retrieval_prefix_chars"
 
 
@@ -25,6 +25,8 @@ def source_location(metadata: Dict[str, Any]) -> str:
         return f"{source_name}，第 {display_page(metadata)} 页"
     if modality == "url":
         return f"{source_name}，网页资料"
+    if modality == "image":
+        return f"{source_name}，图片资料"
     return f"{source_name}，文本资料"
 
 
