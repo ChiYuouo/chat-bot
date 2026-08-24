@@ -6,9 +6,9 @@ import pandas as pd
 import streamlit as st
 
 from app.ingestion import ingest_pdf, ingest_text, ingest_url
+from app.knowledge_base import add_source
 from app.router import process_user_message
 from app.state import (
-    add_source,
     clear_uploaded_files,
     init_session_state,
     remove_uploaded_image_temp_file,

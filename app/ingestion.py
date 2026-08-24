@@ -8,7 +8,7 @@ import socket
 import tempfile
 import uuid
 from html.parser import HTMLParser
-from typing import Any, Dict, List
+from typing import Any, List
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -18,6 +18,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import Config
 from app.models import KnowledgeSource, SourceModality
+from app.source_utils import display_page
 
 
 TEXT_SOURCE_MAX_CHARS = 200_000
@@ -138,26 +139,6 @@ def _split_structured_documents(documents: List[Any]) -> List[Document]:
         if title and not chunk.page_content.lstrip().startswith(str(title)):
             chunk.page_content = f"{title}\n{chunk.page_content}"
     return chunks
-
-
-def display_page(metadata: Dict[str, Any]) -> Any:
-    """将 PyMuPDF 从 0 开始的页码转换为用户看到的页码。"""
-    if "display_page" in metadata:
-        return metadata["display_page"]
-    if "page" in metadata:
-        page = metadata["page"]
-        return page + 1 if isinstance(page, int) else page
-    return metadata.get("page_number", "未知")
-
-
-def source_location(metadata: Dict[str, Any]) -> str:
-    source_name = metadata.get("source", "未知资料")
-    modality = metadata.get("modality", "pdf")
-    if modality == "pdf":
-        return f"{source_name}，第 {display_page(metadata)} 页"
-    if modality == "url":
-        return f"{source_name}，网页资料"
-    return f"{source_name}，文本资料"
 
 
 def _attach_source_metadata(

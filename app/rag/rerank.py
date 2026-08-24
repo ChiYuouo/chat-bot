@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Sequence, Tuple
 from app.config import Config
 from app.llm import create_chat_model
 from app.rag.retrieval import SearchCandidate
+from app.source_utils import document_content, source_location
 from app.utils import extract_json
 
 
@@ -22,14 +23,10 @@ def llm_rerank(
 
     candidate_text = []
     for item in candidates:
-        source = item.document.metadata.get("source", "未知文件")
-        modality = item.document.metadata.get("modality", "pdf")
-        if modality == "pdf":
-            location = f"第 {item.document.metadata.get('display_page', '未知')} 页"
-        else:
-            location = "网页资料" if modality == "url" else "文本资料"
-        content = item.document.page_content[:Config.RERANK_CHUNK_MAX_CHARS]
-        candidate_text.append(f"[{item.chunk_id}] {source} {location}\n{content}")
+        content = document_content(item.document)[:Config.RERANK_CHUNK_MAX_CHARS]
+        candidate_text.append(
+            f"[{item.chunk_id}] {source_location(item.document.metadata)}\n{content}"
+        )
 
     prompt = f"""你是文档检索精排器。请为每个候选段落评估相关性并排序。
 

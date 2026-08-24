@@ -8,10 +8,11 @@ import streamlit as st
 
 from app.capabilities.data_agent import agent_answer
 from app.capabilities.general import general_answer
-from app.capabilities.rag import build_keyword_index, build_vector_store, rag_answer
+from app.capabilities.rag import rag_answer
 from app.capabilities.vision import vision_answer
 from app.config import Config
 from app.intent import recognize_intent
+from app.knowledge_base import ensure_indexes
 
 
 def get_intent_badge(intent: str) -> str:
@@ -90,18 +91,8 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                 if not files.get("knowledge_chunks"):
                     response_parts.append("⚠️ **RAG 问答**需要先添加知识库资料\n")
                 else:
-                    if files.get("knowledge_store") is None:
-                        with st.spinner("首次构建知识库检索索引..."):
-                            files["knowledge_store"] = build_vector_store(
-                                files["knowledge_chunks"]
-                            )
-                            files["knowledge_keyword_index"] = build_keyword_index(
-                                files["knowledge_chunks"]
-                            )
-                    elif files.get("knowledge_keyword_index") is None:
-                        files["knowledge_keyword_index"] = build_keyword_index(
-                            files["knowledge_chunks"]
-                        )
+                    with st.spinner("正在准备知识库检索索引..."):
+                        store, keyword_index = ensure_indexes(files)
                     rag_history = (
                         st.session_state.messages[-2:]
                         if "rag_qa" in previous_intents
@@ -110,8 +101,8 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                     with st.spinner("正在改写问题、混合检索并精排..."):
                         result = rag_answer(
                             user_input,
-                            files["knowledge_store"],
-                            files["knowledge_keyword_index"],
+                            store,
+                            keyword_index,
                             rag_history,
                         )
                     rag_debug = result.get("debug")

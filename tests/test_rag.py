@@ -3,13 +3,9 @@ from unittest.mock import patch
 
 from langchain_core.documents import Document
 
-from app.ingestion import (
-    _split_structured_documents,
-    display_page,
-    process_pdf,
-    source_location,
-)
+from app.ingestion import _split_structured_documents, process_pdf
 from app.config import Config
+from app.source_utils import display_page, source_location
 
 
 class RagMetadataTests(unittest.TestCase):

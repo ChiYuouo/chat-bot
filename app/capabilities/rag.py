@@ -1,32 +1,14 @@
 """知识库索引、检索和回答生成。"""
 
 import time
-import uuid
 from typing import Any, Dict, List
 
-from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_community.vectorstores import Chroma
 
 from app.config import Config
-from app.ingestion import display_page, source_location
 from app.llm import create_chat_model
 from app.rag import BM25Index, hybrid_retrieve, llm_rerank, rewrite_query
-
-
-def build_vector_store(chunks: List[Any]) -> Chroma:
-    """为当前知识库创建向量索引。"""
-    embeddings = DashScopeEmbeddings(model=Config.EMBEDDING_MODEL)
-    return Chroma.from_documents(
-        chunks,
-        embeddings,
-        ids=[chunk.metadata["chunk_id"] for chunk in chunks],
-        collection_name=f"knowledge-{uuid.uuid4().hex}",
-    )
-
-
-def build_keyword_index(chunks: List[Any]) -> BM25Index:
-    """为中文关键词召回创建一个轻量内存索引。"""
-    return BM25Index(chunks)
+from app.source_utils import display_page, document_content, source_location
 
 
 def rag_answer(
@@ -77,7 +59,7 @@ def rag_answer(
 
     context = "\n\n".join(
         f"【{item.chunk_id}｜{source_location(item.document.metadata)}】\n"
-        f"{item.document.page_content}"
+        f"{document_content(item.document)}"
         for item in results
     )
     citations = [
@@ -93,7 +75,7 @@ def rag_answer(
                 else None
             ),
             "url": item.document.metadata.get("url"),
-            "content": item.document.page_content[:150],
+            "content": document_content(item.document)[:150],
         }
         for item in results
     ]

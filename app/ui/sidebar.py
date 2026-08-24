@@ -4,7 +4,8 @@ import os
 
 import streamlit as st
 
-from app.state import clear_uploaded_files, remove_source
+from app.knowledge_base import remove_source
+from app.state import clear_uploaded_files
 
 
 _SOURCE_ICONS = {"pdf": "📚", "text": "📝", "url": "🔗"}

@@ -8,14 +8,12 @@ from pydantic import BaseModel, Field
 
 IntentName = Literal["rag_qa", "data_agent", "vision_extract", "general"]
 SourceModality = Literal["pdf", "text", "url"]
-SourceStatus = Literal["ready", "failed"]
 
 
 class KnowledgeSource(BaseModel):
     source_id: str
     name: str
     modality: SourceModality
-    status: SourceStatus = "ready"
     chunk_count: int = Field(ge=1)
     url: Optional[str] = None
     created_at: float = Field(default_factory=time.time)

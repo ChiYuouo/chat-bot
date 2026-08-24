@@ -52,21 +52,18 @@ class RouterTests(unittest.TestCase):
         self.assertIsNone(result["chart"])
 
     @patch("app.router.rag_answer")
-    @patch("app.router.build_keyword_index")
-    @patch("app.router.build_vector_store")
+    @patch("app.router.ensure_indexes")
     @patch("app.router.recognize_intent")
-    def test_knowledge_indexes_are_built_only_once(
+    def test_rag_uses_knowledge_base_indexes(
         self,
         recognize_intent,
-        build_vector_store,
-        build_keyword_index,
+        ensure_indexes,
         rag_answer,
     ):
         recognize_intent.return_value = IntentResult(intent=["rag_qa"], confidence=0.9)
         store = Mock()
         keyword_index = Mock()
-        build_vector_store.return_value = store
-        build_keyword_index.return_value = keyword_index
+        ensure_indexes.return_value = store, keyword_index
         rag_answer.return_value = {"answer": "文档回答", "citations": [], "debug": {}}
         files = {
             "csv_df": None,
@@ -78,28 +75,21 @@ class RouterTests(unittest.TestCase):
 
         with patch.object(router, "st", _fake_streamlit(files)):
             router.process_user_message("文档内容是什么？")
-            router.process_user_message("再总结一下")
 
-        build_vector_store.assert_called_once_with(files["knowledge_chunks"])
-        build_keyword_index.assert_called_once_with(files["knowledge_chunks"])
-        self.assertEqual(rag_answer.call_count, 2)
-        self.assertIs(files["knowledge_store"], store)
-        self.assertIs(files["knowledge_keyword_index"], keyword_index)
+        ensure_indexes.assert_called_once_with(files)
+        rag_answer.assert_called_once_with("文档内容是什么？", store, keyword_index, [])
 
     @patch("app.router.rag_answer")
-    @patch("app.router.build_keyword_index")
-    @patch("app.router.build_vector_store")
+    @patch("app.router.ensure_indexes")
     @patch("app.router.recognize_intent")
     def test_knowledge_rewrite_uses_previous_global_turn_after_rag(
         self,
         recognize_intent,
-        build_vector_store,
-        build_keyword_index,
+        ensure_indexes,
         rag_answer,
     ):
         recognize_intent.return_value = IntentResult(intent=["rag_qa"], confidence=0.9)
-        build_vector_store.return_value = Mock()
-        build_keyword_index.return_value = Mock()
+        ensure_indexes.return_value = Mock(), Mock()
         seen_histories = []
 
         def answer(_question, _store, _keyword_index, history):
