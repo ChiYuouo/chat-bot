@@ -1,11 +1,18 @@
 """知识库资料块的检索文本与来源信息辅助函数。"""
 
+from math import ceil
 from typing import Any, Dict, Iterable, List
 
 from langchain_core.documents import Document
 
 
-_MODALITY_NAMES = {"pdf": "PDF", "text": "文本", "url": "网页", "image": "图片"}
+_MODALITY_NAMES = {
+    "pdf": "PDF",
+    "text": "文本",
+    "url": "网页",
+    "image": "图片",
+    "audio": "音频",
+}
 _RETRIEVAL_PREFIX_CHARS = "retrieval_prefix_chars"
 
 
@@ -27,7 +34,20 @@ def source_location(metadata: Dict[str, Any]) -> str:
         return f"{source_name}，网页资料"
     if modality == "image":
         return f"{source_name}，图片资料"
+    if modality == "audio":
+        start = format_timestamp(float(metadata.get("start_seconds", 0)))
+        end = format_timestamp(ceil(float(metadata.get("end_seconds", 0))))
+        return f"{source_name}，{start}–{end}"
     return f"{source_name}，文本资料"
+
+
+def format_timestamp(seconds: float) -> str:
+    total_seconds = max(0, int(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
 
 
 def build_retrieval_documents(chunks: Iterable[Any]) -> List[Document]:

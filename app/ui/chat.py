@@ -5,7 +5,7 @@ import tempfile
 import pandas as pd
 import streamlit as st
 
-from app.ingestion import ingest_image, ingest_pdf, ingest_text, ingest_url
+from app.ingestion import ingest_audio, ingest_image, ingest_pdf, ingest_text, ingest_url
 from app.knowledge_base import add_source
 from app.router import process_user_message
 from app.state import (
@@ -16,7 +16,7 @@ from app.state import (
 from app.ui.sidebar import render_sidebar
 
 
-_INPUT_PANELS = ("pdf", "text", "url", "image_source", "csv", "img")
+_INPUT_PANELS = ("pdf", "text", "url", "image_source", "audio", "csv", "img")
 
 
 def _toggle_input_panel(selected: str) -> None:
@@ -44,7 +44,7 @@ def render_chat_input_area():
         st.caption(f"当前资料: {' | '.join(uploaded_names)}")
 
     with st.container(border=True):
-        c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
         with c1:
             if st.button("📚 PDF", use_container_width=True, type="secondary"):
                 _toggle_input_panel("pdf")
@@ -58,12 +58,15 @@ def render_chat_input_area():
             if st.button("🖼️ 图片资料", use_container_width=True, type="secondary"):
                 _toggle_input_panel("image_source")
         with c5:
+            if st.button("🎧 音频资料", use_container_width=True, type="secondary"):
+                _toggle_input_panel("audio")
+        with c6:
             if st.button("📄 CSV", use_container_width=True, type="secondary"):
                 _toggle_input_panel("csv")
-        with c6:
+        with c7:
             if st.button("👁️ 临时识图", use_container_width=True, type="secondary"):
                 _toggle_input_panel("img")
-        with c7:
+        with c8:
             if st.button("🗑️ 清空", use_container_width=True, type="secondary"):
                 clear_uploaded_files()
                 for panel in _INPUT_PANELS:
@@ -156,6 +159,37 @@ def render_chat_input_area():
                     add_source(st.session_state.uploaded_files, source, chunks)
                     st.session_state.image_source_upload_revision += 1
                     st.session_state.show_image_source = False
+                    st.rerun()
+
+        if st.session_state.get("show_audio"):
+            revision = st.session_state.setdefault("audio_upload_revision", 0)
+            file = st.file_uploader(
+                "选择要加入知识库的音频",
+                type=["mp3", "wav", "m4a"],
+                key=f"up_audio_{revision}",
+            )
+            if file:
+                audio_bytes = file.read()
+                existing_hashes = {
+                    source_hash
+                    for source in (
+                        st.session_state.uploaded_files.get("knowledge_sources") or {}
+                    ).values()
+                    if (source_hash := getattr(source, "content_hash", None))
+                }
+                try:
+                    with st.spinner("正在转写音频并加入知识库..."):
+                        source, chunks = ingest_audio(
+                            audio_bytes,
+                            source_name=file.name,
+                            existing_content_hashes=existing_hashes,
+                        )
+                except Exception as exc:
+                    st.error(str(exc))
+                else:
+                    add_source(st.session_state.uploaded_files, source, chunks)
+                    st.session_state.audio_upload_revision += 1
+                    st.session_state.show_audio = False
                     st.rerun()
 
         if st.session_state.get("show_img"):

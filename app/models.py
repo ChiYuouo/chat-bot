@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 IntentName = Literal["rag_qa", "data_agent", "vision_extract", "general"]
-SourceModality = Literal["pdf", "text", "url", "image"]
+SourceModality = Literal["pdf", "text", "url", "image", "audio"]
 
 
 class KnowledgeSource(BaseModel):
@@ -17,6 +17,7 @@ class KnowledgeSource(BaseModel):
     chunk_count: int = Field(ge=1)
     url: Optional[str] = None
     content_hash: Optional[str] = None
+    duration_seconds: Optional[float] = Field(default=None, ge=0)
     created_at: float = Field(default_factory=time.time)
 
 

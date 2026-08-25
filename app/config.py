@@ -10,6 +10,11 @@ class Config:
     EMBEDDING_MODEL = "text-embedding-v2"
     REWRITE_MODEL = "qwen-turbo"
     RERANK_MODEL = "qwen-max"
+    ASR_MODEL = "qwen-audio-3.0-asr-flash"
+    ASR_ENDPOINT = (
+        "https://dashscope.aliyuncs.com/api/v1/services/"
+        "aigc/multimodal-generation/generation"
+    )
 
     CONFIDENCE_THRESHOLD = 0.65
     CHUNK_SIZE = 800
@@ -26,3 +31,6 @@ class Config:
 
     IMAGE_SOURCE_MAX_BYTES = 8 * 1024 * 1024
     IMAGE_SOURCE_MAX_PIXELS = 25_000_000
+    AUDIO_SOURCE_MAX_BYTES = 7 * 1024 * 1024
+    AUDIO_SOURCE_MAX_SECONDS = 5 * 60
+    ASR_TIMEOUT_SECONDS = 120

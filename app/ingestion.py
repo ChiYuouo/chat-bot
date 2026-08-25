@@ -16,8 +16,10 @@ import httpx
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from mutagen import File as MutagenFile, MutagenError
 from PIL import Image, UnidentifiedImageError
 
+from app.capabilities.audio import transcribe_audio
 from app.capabilities.vision import extract_image_content
 from app.config import Config
 from app.models import KnowledgeSource, SourceModality
@@ -45,6 +47,14 @@ _STRUCTURE_HEADING_RE = re.compile(
 )
 _IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png"}
 _IMAGE_FORMAT_MEDIA_TYPES = {"JPEG": "image/jpeg", "PNG": "image/png"}
+_AUDIO_MIME_FORMATS = {
+    "audio/mpeg": ("audio/mpeg", "mp3"),
+    "audio/mp3": ("audio/mpeg", "mp3"),
+    "audio/wav": ("audio/wav", "wav"),
+    "audio/x-wav": ("audio/wav", "wav"),
+    "audio/mp4": ("audio/mp4", "m4a"),
+    "audio/x-m4a": ("audio/mp4", "m4a"),
+}
 
 
 class _ReadableHtmlParser(HTMLParser):
@@ -306,6 +316,87 @@ def ingest_image(
         modality="image",
         chunk_count=len(chunks),
         content_hash=content_hash,
+    )
+    return source, chunks
+
+
+def _inspect_audio(audio_bytes: bytes) -> tuple[str, str, float]:
+    """读取真实音频容器信息，返回 MIME、接口格式和时长。"""
+    try:
+        audio = MutagenFile(BytesIO(audio_bytes))
+    except (MutagenError, OSError, ValueError) as exc:
+        raise ValueError("只支持有效且未损坏的 MP3、WAV 或 M4A 音频") from exc
+    if audio is None or getattr(audio, "info", None) is None:
+        raise ValueError("只支持有效且未损坏的 MP3、WAV 或 M4A 音频")
+
+    selected = None
+    for mime_type in getattr(audio, "mime", []) or []:
+        if mime_type.lower() in _AUDIO_MIME_FORMATS:
+            selected = _AUDIO_MIME_FORMATS[mime_type.lower()]
+            break
+    if selected is None:
+        raise ValueError("只支持 MP3、WAV 或 M4A 音频")
+
+    try:
+        duration_seconds = float(audio.info.length)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError("无法读取音频时长") from exc
+    if duration_seconds <= 0:
+        raise ValueError("音频时长必须大于 0 秒")
+    return selected[0], selected[1], duration_seconds
+
+
+def ingest_audio(
+    audio_bytes: bytes,
+    source_name: str,
+    existing_content_hashes: Collection[str] | None = None,
+) -> tuple[KnowledgeSource, List[Document]]:
+    """转写短音频，并将带时间戳的句子转换为统一知识库 Chunk。"""
+    source_name = source_name.strip()
+    if not source_name:
+        raise ValueError("音频文件名不能为空")
+    if not audio_bytes:
+        raise ValueError("音频内容不能为空")
+    if len(audio_bytes) > Config.AUDIO_SOURCE_MAX_BYTES:
+        max_mb = Config.AUDIO_SOURCE_MAX_BYTES // (1024 * 1024)
+        raise ValueError(f"音频不能超过 {max_mb} MB")
+
+    content_hash = hashlib.sha256(audio_bytes).hexdigest()
+    if content_hash in (existing_content_hashes or ()):
+        raise ValueError("该音频已存在于知识库中，请勿重复添加")
+
+    media_type, audio_format, duration_seconds = _inspect_audio(audio_bytes)
+    if duration_seconds > Config.AUDIO_SOURCE_MAX_SECONDS:
+        max_minutes = Config.AUDIO_SOURCE_MAX_SECONDS // 60
+        raise ValueError(f"音频时长不能超过 {max_minutes} 分钟")
+
+    transcription = transcribe_audio(audio_bytes, media_type, audio_format)
+    documents = [
+        Document(
+            page_content=str(segment["text"]).strip(),
+            metadata={
+                "start_seconds": float(segment["start_seconds"]),
+                "end_seconds": float(segment["end_seconds"]),
+                "media_type": media_type,
+                "content_hash": content_hash,
+            },
+        )
+        for segment in transcription["segments"]
+        if str(segment.get("text") or "").strip()
+    ]
+    chunks = _split_structured_documents(documents)
+    if not chunks:
+        raise ValueError("音频中未识别到可检索文字")
+
+    source_id = f"source-{uuid.uuid4().hex[:12]}"
+    _attach_source_metadata(chunks, source_id, source_name, "audio")
+    source = KnowledgeSource(
+        source_id=source_id,
+        name=source_name,
+        modality="audio",
+        chunk_count=len(chunks),
+        content_hash=content_hash,
+        duration_seconds=duration_seconds,
     )
     return source, chunks
 

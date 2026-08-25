@@ -5,10 +5,17 @@ import os
 import streamlit as st
 
 from app.knowledge_base import remove_source
+from app.source_utils import format_timestamp
 from app.state import clear_uploaded_files
 
 
-_SOURCE_ICONS = {"pdf": "📚", "text": "📝", "url": "🔗", "image": "🖼️"}
+_SOURCE_ICONS = {
+    "pdf": "📚",
+    "text": "📝",
+    "url": "🔗",
+    "image": "🖼️",
+    "audio": "🎧",
+}
 
 
 def render_sidebar() -> None:
@@ -33,7 +40,14 @@ def render_sidebar() -> None:
             source_col, delete_col = st.columns([5, 1])
             with source_col:
                 icon = _SOURCE_ICONS.get(source.modality, "📄")
-                st.success(f"{icon} {source.name} · {source.chunk_count} 块")
+                duration = (
+                    f" · {format_timestamp(source.duration_seconds)}"
+                    if source.modality == "audio" and source.duration_seconds is not None
+                    else ""
+                )
+                st.success(
+                    f"{icon} {source.name}{duration} · {source.chunk_count} 块"
+                )
             with delete_col:
                 if st.button("✕", key=f"delete_{source.source_id}", help="删除该资料"):
                     remove_source(files, source.source_id)
