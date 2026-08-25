@@ -34,14 +34,36 @@ def _looks_like_contextual_follow_up(text: str) -> bool:
 
 
 def _format_citation(citation: Dict[str, Any]) -> str:
-    url = f" · {citation['url']}" if citation.get("url") else ""
-    return f"  - {citation['location']}{url}: {citation['content'][:50]}..."
+    location = re.sub(r"\s+", " ", str(citation.get("location") or "未知资料")).strip()
+    url = re.sub(r"\s+", "", str(citation.get("url") or ""))
+    if url:
+        # 使用 Markdown 自动链接，避免长 URL 与来源名称粘连。
+        safe_url = url.replace("<", "%3C").replace(">", "%3E")
+        return f"- {location} · <{safe_url}>"
+    return f"- {location}"
+
+
+def _format_citations(citations: list[Dict[str, Any]]) -> str:
+    """按实际来源位置去重，只展示来源，不渲染原始 Chunk 正文。"""
+    lines = []
+    seen = set()
+    for citation in citations:
+        key = (
+            str(citation.get("location") or "").strip(),
+            str(citation.get("url") or "").strip(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        lines.append(_format_citation(citation))
+    return "\n".join(lines)
 
 
 def process_user_message(user_input: str) -> Dict[str, Any]:
     files = st.session_state.uploaded_files
     chart = None
     rag_debug = None
+    prefetched_rag_result = None
 
     try:
         intent_result = recognize_intent(user_input)
@@ -77,6 +99,45 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         fallback_reason = None
         routing_note = "识别为上一轮知识库问答的追问"
 
+
+    # 请求先做一次知识库相关性预检：只有精排明确命中时才切换到 RAG；未命中或精排
+    # 降级时继续普通问答，避免知识库存在后所有闲聊都返回“资料中未找到”。
+    eligible_for_knowledge_precheck = (
+        not intent_result.intent
+        or all(intent in {"general", "rag_qa"} for intent in intent_result.intent)
+    )
+    if (
+        intents == ["general"]
+        and eligible_for_knowledge_precheck
+        and bool(files.get("knowledge_chunks"))
+    ):
+        try:
+            with st.spinner("正在检查知识库中是否有相关资料..."):
+                store, keyword_index = ensure_indexes(files)
+                rag_history = (
+                    st.session_state.messages[-2:]
+                    if "rag_qa" in previous_intents
+                    else []
+                )
+                candidate_result = rag_answer(
+                    user_input,
+                    store,
+                    keyword_index,
+                    rag_history,
+                )
+            rag_debug = candidate_result.get("debug")
+            rerank_applied = bool(
+                (rag_debug or {}).get("rerank", {}).get("applied")
+            )
+            if candidate_result.get("citations") and rerank_applied:
+                intents = ["rag_qa"]
+                prefetched_rag_result = candidate_result
+                fallback_reason = None
+                routing_note = "知识库命中相关资料，已自动使用 RAG"
+        except Exception as exc:
+            # 自适应预检是普通问答的增强能力，失败不能阻断原有普通问答。
+            rag_debug = {"adaptive_rag_error": str(exc)}
+
     intent_str = ", ".join(get_intent_badge(intent) for intent in intents)
     confidence_str = f"{intent_result.confidence:.0%}"
     response_parts = [f"🎆 **意图识别**: {intent_str} (置信度: {confidence_str})\n"]
@@ -91,24 +152,26 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                 if not files.get("knowledge_chunks"):
                     response_parts.append("⚠️ **RAG 问答**需要先添加知识库资料\n")
                 else:
-                    with st.spinner("正在准备知识库检索索引..."):
-                        store, keyword_index = ensure_indexes(files)
-                    rag_history = (
-                        st.session_state.messages[-2:]
-                        if "rag_qa" in previous_intents
-                        else []
-                    )
-                    with st.spinner("正在改写问题、混合检索并精排..."):
-                        result = rag_answer(
-                            user_input,
-                            store,
-                            keyword_index,
-                            rag_history,
+                    result = prefetched_rag_result
+                    if result is None:
+                        with st.spinner("正在准备知识库检索索引..."):
+                            store, keyword_index = ensure_indexes(files)
+                        rag_history = (
+                            st.session_state.messages[-2:]
+                            if "rag_qa" in previous_intents
+                            else []
                         )
+                        with st.spinner("正在改写问题、混合检索并精排..."):
+                            result = rag_answer(
+                                user_input,
+                                store,
+                                keyword_index,
+                                rag_history,
+                            )
                     rag_debug = result.get("debug")
                     response_parts.append(f"📚 **RAG 回答**:\n{result['answer']}\n")
                     if result["citations"]:
-                        citations = "\n".join(map(_format_citation, result["citations"]))
+                        citations = _format_citations(result["citations"])
                         response_parts.append(f"\n🔎 **引用来源**:\n{citations}\n")
 
             elif intent == "data_agent":

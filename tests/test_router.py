@@ -19,6 +19,37 @@ class RouterTests(unittest.TestCase):
         self.assertTrue(router._looks_like_contextual_follow_up("那最多有几天？"))
         self.assertFalse(router._looks_like_contextual_follow_up("请帮我写一封会议邀请邮件"))
 
+    def test_citation_list_does_not_render_chunk_markdown_and_deduplicates_source(self):
+        citations = [
+            {
+                "location": "Flutter Day02 - Telus，网页资料",
+                "url": "https://example.com/flutter",
+                "content": "## TextField\n10\n- [ ] 任务项\n```dart\n代码",
+            },
+            {
+                "location": "Flutter Day02 - Telus，网页资料",
+                "url": "https://example.com/flutter",
+                "content": "另一个 Chunk 的正文",
+            },
+        ]
+
+        formatted = router._format_citations(citations)
+
+        self.assertEqual(
+            formatted,
+            "- Flutter Day02 - Telus，网页资料 · <https://example.com/flutter>",
+        )
+        self.assertNotIn("TextField", formatted)
+        self.assertNotIn("任务项", formatted)
+
+    def test_citation_without_url_only_shows_location(self):
+        formatted = router._format_citation({
+            "location": "员工手册.pdf，\n第 3 页",
+            "content": "员工年假为十天。",
+        })
+
+        self.assertEqual(formatted, "- 员工手册.pdf， 第 3 页")
+
     @patch("app.router.recognize_intent")
     def test_rag_requires_at_least_one_knowledge_chunk(self, recognize_intent):
         recognize_intent.return_value = IntentResult(intent=["rag_qa"], confidence=0.9)
@@ -68,7 +99,12 @@ class RouterTests(unittest.TestCase):
         ensure_indexes.return_value = store, keyword_index
         rag_answer.return_value = {
             "answer": "TextField 可通过 controller 读取输入值。",
-            "citations": [{"chunk_id": "flutter-text-field"}],
+            "citations": [{
+                "chunk_id": "flutter-text-field",
+                "location": "Flutter Day02，网页资料",
+                "url": "https://example.com/flutter",
+                "content": "controller 用于读取输入内容。",
+            }],
             "debug": {"rerank": {"applied": True}},
         }
         files = {
@@ -91,6 +127,7 @@ class RouterTests(unittest.TestCase):
         )
         general_answer.assert_not_called()
         self.assertIn("RAG 回答", result["content"])
+        self.assertNotIn("执行失败", result["content"])
         self.assertEqual(fake_st.session_state.last_intents, ["rag_qa"])
 
     @patch("app.router.general_answer", return_value="普通回答")
@@ -161,6 +198,44 @@ class RouterTests(unittest.TestCase):
         general_answer.assert_called_once()
         self.assertIn("普通回答", result["content"])
         self.assertNotIn("候选块生成的回答", result["content"])
+
+    @patch("app.router.general_answer")
+    @patch("app.router.rag_answer")
+    @patch("app.router.ensure_indexes")
+    @patch("app.router.recognize_intent")
+    def test_low_confidence_rag_intent_is_rescued_by_relevant_knowledge(
+        self,
+        recognize_intent,
+        ensure_indexes,
+        rag_answer,
+        general_answer,
+    ):
+        recognize_intent.return_value = IntentResult(intent=["rag_qa"], confidence=0.4)
+        ensure_indexes.return_value = Mock(), Mock()
+        rag_answer.return_value = {
+            "answer": "资料回答",
+            "citations": [{
+                "chunk_id": "relevant",
+                "location": "员工手册，第 3 页",
+                "url": None,
+                "content": "员工年假为十天。",
+            }],
+            "debug": {"rerank": {"applied": True}},
+        }
+        files = {
+            "csv_df": None,
+            "knowledge_chunks": [Mock()],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
+            "image_path": None,
+        }
+
+        with patch.object(router, "st", _fake_streamlit(files)):
+            result = router.process_user_message("员工年假有多少天？")
+
+        general_answer.assert_not_called()
+        self.assertIn("RAG 回答", result["content"])
+        self.assertNotIn("已自动降级为普通问答", result["content"])
 
     @patch("app.router.rag_answer")
     @patch("app.router.ensure_indexes")

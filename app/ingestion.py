@@ -39,12 +39,27 @@ _ALLOWED_URL_CONTENT_TYPES = {
     "text/plain",
 }
 _SKIPPED_HTML_TAGS = {"footer", "header", "nav", "noscript", "script", "style"}
+_BLOCK_HTML_TAGS = {
+    "article",
+    "blockquote",
+    "br",
+    "div",
+    "figure",
+    "li",
+    "main",
+    "p",
+    "pre",
+    "section",
+    "table",
+    "tr",
+}
+_HTML_HEADING_LEVELS = {f"h{level}": level for level in range(1, 7)}
 _STRUCTURE_HEADING_RE = re.compile(
     r"^\s*(?:"
-    r"#{1,6}\s+\S+|"
+    r"#{1,6}\s+\S.*|"
     r"第[一二三四五六七八九十百千万零〇两\d]+[编章节条款]\s*.*|"
-    r"[一二三四五六七八九十百]+、\s*\S+|"
-    r"\d+(?:\.\d+)*[、.．)]\s*\S+"
+    r"[一二三四五六七八九十百]+、\s*\S.*|"
+    r"\d+(?:\.\d+)*[、.．)]\s*\S.*"
     r")\s*$"
 )
 _IMAGE_SUFFIXES = {"image/jpeg": ".jpg", "image/png": ".png"}
@@ -70,14 +85,27 @@ class _ReadableHtmlParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: List[tuple[str, str | None]]) -> None:
         if tag in _SKIPPED_HTML_TAGS:
             self._skipped_tags.append(tag)
-        elif tag == "title" and not self._skipped_tags:
+            return
+        if self._skipped_tags:
+            return
+        if tag == "title":
             self._in_title = True
+        elif tag in _HTML_HEADING_LEVELS:
+            self.text_parts.append(
+                f"\n{'#' * _HTML_HEADING_LEVELS[tag]} "
+            )
+        elif tag in _BLOCK_HTML_TAGS:
+            self.text_parts.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
-        if self._skipped_tags and tag == self._skipped_tags[-1]:
-            self._skipped_tags.pop()
-        elif tag == "title":
+        if self._skipped_tags:
+            if tag == self._skipped_tags[-1]:
+                self._skipped_tags.pop()
+            return
+        if tag == "title":
             self._in_title = False
+        elif tag in _HTML_HEADING_LEVELS or tag in _BLOCK_HTML_TAGS:
+            self.text_parts.append("\n")
 
     def handle_data(self, data: str) -> None:
         if self._skipped_tags:
@@ -524,7 +552,12 @@ def _extract_web_text(raw_text: str, content_type: str) -> tuple[str, str | None
 
     parser = _ReadableHtmlParser()
     parser.feed(raw_text)
-    text = " ".join(" ".join(parser.text_parts).split())
+    text = " ".join(parser.text_parts)
+    text = re.sub(r"[^\S\r\n]+", " ", text)
+    text = re.sub(r" *\r?\n *", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    # 许多博客会在标题末尾放一个文本为“#”的锚点，只保留真正的标题文字。
+    text = re.sub(r"(?m)^(#{1,6}\s+.*?)\s+#\s*$", r"\1", text)
     title = " ".join(" ".join(parser.title_parts).split()) or None
     return text, title
 
