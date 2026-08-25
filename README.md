@@ -1,127 +1,260 @@
-# Enterprise AI Copilot
+<h1 align="center">Enterprise AI Copilot</h1>
 
-一个基于 **Streamlit、LangChain 与通义千问** 的企业智能助手示例。系统会识别用户意图，并自动调用文档问答、数据分析、图片识别或通用对话能力。
+<p align="center">
+  基于 Streamlit、LangChain 与通义千问构建的多能力企业智能助手。<br>
+  通过统一对话入口，自动路由知识库问答、CSV 数据分析、图片识别和通用对话任务。
+</p>
 
-## 功能特性
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
+  <a href="https://streamlit.io/"><img src="https://img.shields.io/badge/Streamlit-1.61%2B-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit 1.61+"></a>
+  <a href="https://www.langchain.com/"><img src="https://img.shields.io/badge/LangChain-RAG-1C3C3C" alt="LangChain RAG"></a>
+  <a href="#测试"><img src="https://img.shields.io/badge/tests-79_cases-brightgreen" alt="79 tests"></a>
+</p>
 
-- **智能意图路由**：识别单个或多个任务；知识库存在时会对普通问题自适应检索，命中资料后自动切换到 RAG
-- **多来源知识库**：支持 PDF、TXT/Markdown 文档、网页、图片和音频共存、跨来源检索、按来源删除和精确引用
-- **RAG 问答**：结构化切分、原问题与改写问题多路召回、RRF 混排、带相关性阈值的 LLM 精排
-- **CSV 数据分析**：根据自然语言生成 Pandas 代码、统计结果与图表
-- **图片内容识别**：理解图片并返回结构化信息
-- **多轮通用对话**：保留最近的会话上下文，支持连续提问
+<p align="center">
+  <a href="#核心能力">核心能力</a> ·
+  <a href="#系统架构">系统架构</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#rag-检索链路">RAG 检索链路</a> ·
+  <a href="#项目结构">项目结构</a>
+</p>
 
-## 项目架构
+## 项目简介
+
+Enterprise AI Copilot 是一个面向企业知识检索与日常办公场景的 AI 助手示例。用户可以将 PDF、文本、网页、图片和音频加入同一个知识库，再直接使用自然语言提问；系统也支持上传 CSV 进行统计分析、生成图表，或对单张图片进行内容识别。
+
+项目重点不只是完成一次“向量检索 + LLM”的调用，而是实现了一条可观察、可降级的 RAG 链路：结合对话历史改写问题，通过向量检索与中文 BM25 多路召回，使用 RRF 融合结果，再由 LLM 进行相关性精排和阈值过滤，最终生成带来源定位的回答。
+
+> 当前项目定位为学习与本地演示项目，不应直接作为生产系统部署。
+
+## 核心能力
+
+| 能力 | 实现说明 |
+| --- | --- |
+| 智能意图路由 | 使用 Qwen Turbo 识别一个或多个任务，按置信度路由至 RAG、数据分析、图片识别或通用对话 |
+| 自适应 RAG | 知识库非空时，普通问题会先进行相关性预检；命中资料后自动切换至 RAG，未命中则继续普通问答 |
+| 多来源知识库 | 统一管理 PDF、TXT/Markdown、网页、图片和音频，可跨来源检索、按来源删除并展示引用位置 |
+| 混合检索 | 对原问题和改写问题分别执行向量检索与中文 BM25 召回，并通过 RRF 完成去重和排序融合 |
+| LLM 精排 | 使用 Listwise 方式为候选 Chunk 评分，通过相关性阈值过滤主题相似但无法提供直接证据的内容 |
+| 结构化切分 | 优先识别 Markdown 标题、章节、条款和编号结构，再在结构段内部按长度切分并保留元数据 |
+| CSV 数据分析 | 根据自然语言生成 Pandas/Matplotlib 代码，在受限子进程中执行并返回统计结果或图表 |
+| 多模态理解 | 使用视觉模型提取图片中的 OCR、实体和客观描述；使用 ASR 转写短音频并保留时间信息 |
+| 可观察与降级 | 页面可展开查看查询改写、各路召回、融合排序、精排分数、阈值过滤及阶段耗时；模型调用失败时自动降级 |
+
+## 系统架构
 
 ```mermaid
 flowchart LR
     U[用户] --> UI[Streamlit 对话界面]
-    UI --> I[意图识别<br/>Qwen Turbo]
-    I --> R{能力路由}
-    R --> G[通用对话<br/>Qwen Max]
-    R --> D[多来源 RAG 2.0<br/>PDF + TXT/MD + URL + Image + Audio]
-    R --> A[CSV 数据分析<br/>Pandas + Matplotlib]
-    R --> V[图片识别<br/>Qwen VL Max]
-    G & D & A & V --> UI
+    UI --> IR[意图识别与能力路由]
+
+    IR --> G[通用对话]
+    IR --> RAG[RAG 问答]
+    IR --> DA[CSV 数据分析]
+    IR --> V[图片识别]
+
+    S[PDF / TXT / Markdown / URL / Image / Audio] --> ING[解析与结构化切分]
+    ING --> KB[统一知识库]
+    KB --> VS[Chroma 向量索引]
+    KB --> BM[中文 BM25 索引]
+    VS --> RAG
+    BM --> RAG
+
+    RAG --> OUT[回答、引用与检索过程]
+    G --> OUT
+    DA --> OUT
+    V --> OUT
+    OUT --> UI
 ```
 
-## 快速开始
+### 主要模块
 
-准备 Python 3.10+ 和 [DashScope API Key](https://help.aliyun.com/zh/model-studio/get-api-key)。
+- **交互层**：Streamlit 负责对话、资料上传、知识库管理和检索过程展示。
+- **路由层**：识别用户意图，处理多意图、低置信度降级以及知识库自适应预检。
+- **能力层**：分别封装 RAG、数据分析、图片理解和通用对话逻辑。
+- **知识层**：统一管理来源、Chunk 与索引生命周期，并保留页码、URL、章节或音频时间戳等元数据。
 
-```bash
-git clone https://github.com/ChiYuouo/chat-bot.git
-cd chat-bot
-
-python -m venv .venv
-```
-
-激活虚拟环境并安装依赖：
-
-```bash
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-
-# macOS / Linux
-source .venv/bin/activate
-
-python -m pip install -r requirements.txt
-```
-
-启动应用：
-
-```bash
-streamlit run chatbot.py
-```
-
-浏览器打开 `http://localhost:8501`，在侧边栏填写 API Key，即可添加 PDF、TXT/Markdown 文档、网页、图片、音频或 CSV 资料。音频 MVP 支持 MP3、WAV 和 M4A，单个文件最长 5 分钟、最大 7 MB。
-
-## 使用示例
-
-| 场景 | 示例问题 |
-| --- | --- |
-| 文档问答 | `对比员工手册和考勤制度中的年假规定。` |
-| 网页问答 | `刚刚添加的公司制度网页中有哪些报销要求？` |
-| 音频问答 | `会议录音中确认的上线时间和预算是多少？` |
-| 数据分析 | `统计各类别数量，并生成条形图。` |
-| 图片识别 | `提取这张发票中的金额和日期。` |
-| 普通对话 | `帮我写一封简短的会议邀请邮件。` |
-
-## 目录结构
-
-```text
-chatbot.py              # 应用入口
-app/
-├── capabilities/       # RAG、数据分析、视觉与通用对话能力
-├── ingestion.py        # PDF、TXT/Markdown、网页、图片和音频资料解析
-├── knowledge_base.py   # 资料集合与检索索引生命周期
-├── source_utils.py     # 来源位置与检索文本处理
-├── ui/                 # Streamlit 页面与侧边栏
-├── intent.py           # 意图识别
-├── router.py           # 能力路由
-├── config.py           # 模型与检索配置
-└── state.py            # 会话状态管理
-```
-
-## 技术栈
-
-`Python` · `Streamlit` · `LangChain` · `DashScope` · `ChromaDB` · `HTTPX` · `Pandas` · `Matplotlib`
-
-## RAG检索链路
+## RAG 检索链路
 
 ```text
 用户问题
-  → 结合历史对话 Rewrite
-  → 原问题：向量 Top 15 + 中文 BM25 Top 15
-  → 改写问题：向量 Top 15 + 中文 BM25 Top 15
-  → RRF 混排 Top 10
-  → Qwen Listwise 相关性评分（默认阈值 0.55）
-  → Top 4 生成答案并标注来源
+  ↓
+结合最近对话改写为独立问题（Rewrite）
+  ↓
+┌──────────────────────┬──────────────────────┐
+│ 改写问题：向量 Top 15 │ 改写问题：BM25 Top 15 │
+├──────────────────────┼──────────────────────┤
+│ 原问题：向量 Top 15   │ 原问题：BM25 Top 15   │
+└──────────────────────┴──────────────────────┘
+  ↓
+RRF 混排并截取 Top 10
+  ↓
+Qwen Listwise 相关性评分（默认阈值 0.55）
+  ↓
+Top 4 上下文生成答案并标注来源
 ```
 
-PDF、TXT/Markdown 文档、网页正文、图片提取结果和音频转写文本会进入同一个知识库。资料先按章节、条款和编号标题进行结构化切分，再在结构段内部按长度生成 Chunk；PDF 额外保留页码，Markdown 标题会作为章节结构，网页保留原始 URL，图片由视觉模型提取 OCR、客观描述和实体，音频由 ASR 转写并保留起止时间。聊天界面的“查看 RAG 检索过程”会展示改写结果、多路召回、混排、相关性分数、阈值过滤结果和各阶段耗时。Rewrite、精排失败时都会自动降级，不会中断问答。
+只有在 Rewrite 结果与原问题不同时，系统才会额外执行“原问题”的向量和 BM25 两路召回；独立完整的问题不会重复检索。
 
-用户不需要在问题中刻意写“根据文档”或“根据网页”。当意图识别结果为普通问答且知识库非空时，系统会先进行一次混合检索和相关性精排；命中高相关资料后自动使用 RAG，未命中则继续普通问答。这个判断作用于 PDF、TXT/Markdown、网页、图片和音频等全部知识来源。
-
-### RRF 混排
-
-[`app/rag/retrieval.py`](app/rag/retrieval.py) 中的 `reciprocal_rank_fusion` 会累加同一个 chunk 在多路召回中的倒数排名分数：
-
-实现公式：
+RRF 会累加同一个 Chunk 在多路召回结果中的倒数排名分数：
 
 ```text
 score(document) = Σ 1 / (rrf_k + rank_i)
 ```
 
-对应单元测试位于 [`tests/test_rag_retrieval.py`](tests/test_rag_retrieval.py)。
+当 Rewrite 或精排调用失败时，系统会退回原问题或保留 RRF 排序，避免单个增强步骤导致整次问答中断。
 
-> [!WARNING]
-> CSV 分析模块会在受限子进程中执行大模型生成的 Python 代码，并进行语法检查与超时控制；这仍不能替代生产环境的容器沙箱、网络隔离与操作系统级资源限制。
+## 支持的数据来源
 
-## 运行测试
+| 类型 | 支持格式 | 处理方式 | 当前限制 |
+| --- | --- | --- | --- |
+| PDF | `.pdf` | 提取文本、保留页码、结构化切分 | 扫描版 PDF 可能无法提取有效文本 |
+| 文本文档 | `.txt` `.md` `.markdown` | 支持 UTF-8/GB18030，识别标题和章节 | 最大 1 MB |
+| 网页 | HTTP/HTTPS URL | 提取标题与正文并保留原始 URL | 响应最大 2 MB，只允许公网地址 |
+| 图片知识库 | `.png` `.jpg` `.jpeg` | 视觉模型提取 OCR、描述与实体后统一入库 | 最大 8 MB、2500 万像素 |
+| 音频知识库 | `.mp3` `.wav` `.m4a` | ASR 转写并保留起止时间 | 最大 7 MB、最长 5 分钟 |
+| CSV 分析 | `.csv` | 加载为 DataFrame，由模型生成分析代码 | 独立于知识库检索 |
 
-项目测试不依赖真实 API Key：
+## 快速开始
+
+### 环境要求
+
+- Python 3.10+
+- 可用的 [DashScope API Key](https://help.aliyun.com/zh/model-studio/get-api-key)
+
+### 1. 获取项目
+
+```bash
+git clone https://github.com/ChiYuouo/chat-bot.git
+cd chat-bot
+```
+
+### 2. 创建虚拟环境
+
+```bash
+python -m venv .venv
+```
+
+Windows PowerShell：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+macOS / Linux：
+
+```bash
+source .venv/bin/activate
+```
+
+### 3. 安装依赖
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+### 4. 启动应用
+
+```bash
+streamlit run chatbot.py
+```
+
+打开 `http://localhost:8501`，在侧边栏输入 DashScope API Key 后即可使用。
+
+也可以提前设置环境变量：
+
+```powershell
+# Windows PowerShell
+$env:DASHSCOPE_API_KEY="your-api-key"
+```
+
+```bash
+# macOS / Linux
+export DASHSCOPE_API_KEY="your-api-key"
+```
+
+## 使用示例
+
+| 场景 | 操作 | 示例问题 |
+| --- | --- | --- |
+| 跨资料问答 | 添加多份制度文档 | `对比员工手册和考勤制度中的年假规定。` |
+| 自适应知识库 | 添加资料后直接提问 | `报销需要提交哪些材料？` |
+| 网页问答 | 添加公开网页 | `这个页面介绍了哪些核心功能？` |
+| 音频问答 | 添加会议录音 | `会议中确认的上线时间和预算是多少？` |
+| CSV 分析 | 上传 CSV 文件 | `统计各类别数量，并生成条形图。` |
+| 图片识别 | 上传待识别图片 | `提取这张发票中的金额和日期。` |
+| 普通对话 | 直接发送消息 | `帮我写一封简短的会议邀请邮件。` |
+
+## 项目结构
+
+```text
+chatbot.py                  # Streamlit 应用入口
+app/
+├── capabilities/
+│   ├── rag.py              # RAG 回答生成与引用
+│   ├── data_agent.py       # CSV 分析代码生成
+│   ├── vision.py           # 图片理解
+│   ├── audio.py            # 音频转写
+│   └── general.py          # 通用对话
+├── rag/
+│   ├── rewrite.py          # 对话问题改写
+│   ├── retrieval.py        # 向量、BM25 与 RRF 混合检索
+│   └── rerank.py           # LLM Listwise 精排
+├── ui/                     # Streamlit 页面与侧边栏
+├── ingestion.py            # 多来源解析与结构化切分
+├── knowledge_base.py       # 来源、Chunk 与索引生命周期
+├── safe_executor.py        # 生成代码检查与受限执行
+├── intent.py               # 意图识别
+├── router.py               # 能力路由与降级策略
+├── source_utils.py         # 来源位置与检索文本处理
+├── config.py               # 模型及检索参数
+├── models.py               # Pydantic 数据模型
+└── state.py                # 会话状态管理
+tests/                      # 单元测试
+requirements.txt            # Python 依赖
+```
+
+## 默认配置
+
+核心模型和检索参数集中在 `app/config.py`：
+
+| 配置项 | 默认值 | 用途 |
+| --- | --- | --- |
+| `LLM_MODEL` | `qwen-max` | 回答生成与通用对话 |
+| `INTENT_MODEL` | `qwen-turbo` | 意图识别 |
+| `VISION_MODEL` | `qwen-vl-max` | 图片理解与内容提取 |
+| `EMBEDDING_MODEL` | `text-embedding-v2` | Chroma 向量索引 |
+| `ASR_MODEL` | `qwen-audio-3.0-asr-flash` | 音频转写 |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `800` / `120` | 文档切分 |
+| `RETRIEVAL_K` | `15` | 每路召回数量 |
+| `FUSION_K` | `10` | RRF 融合后候选数量 |
+| `FINAL_CONTEXT_K` | `4` | 最终上下文数量 |
+| `RERANK_RELEVANCE_THRESHOLD` | `0.55` | 精排相关性阈值 |
+
+## 测试
+
+测试不依赖真实 API Key，当前包含 14 个测试文件、79 个测试用例，覆盖资料解析、混合检索、RRF、Rewrite、精排、路由、回答引用、数据分析和受限执行等核心逻辑。
 
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## 安全设计与边界
+
+项目对外部输入和模型生成代码做了基础防护：
+
+- 网页抓取拒绝本机、内网和保留地址，限制重定向次数、内容类型与响应大小。
+- 图片和音频会校验真实格式、文件大小、像素或时长，并通过内容哈希避免重复入库。
+- CSV 分析代码会经过 AST 检查，禁止导入模块、访问文件/网络、动态执行和覆盖受保护变量。
+- 通过独立子进程执行分析代码，设置超时并限制文本输出长度。
+- Rerank 输出按不可信数据处理，会过滤未知 Chunk ID、重复 ID 和非法分数。
+
+> 这些措施适合本地演示，但不能替代生产环境中的容器沙箱、网络隔离、操作系统级资源限制、身份认证和权限审计。
+
+
+
+## 致谢
+
+本项目使用了 [Streamlit](https://streamlit.io/)、[LangChain](https://www.langchain.com/)、[Chroma](https://www.trychroma.com/)、[jieba](https://github.com/fxsjy/jieba)、[rank-bm25](https://github.com/dorianbrown/rank_bm25) 与 [DashScope](https://help.aliyun.com/zh/model-studio/) 等开源项目和服务。
