@@ -51,6 +51,117 @@ class RouterTests(unittest.TestCase):
         self.assertIn("已自动降级", result["content"])
         self.assertIsNone(result["chart"])
 
+    @patch("app.router.general_answer")
+    @patch("app.router.rag_answer")
+    @patch("app.router.ensure_indexes")
+    @patch("app.router.recognize_intent")
+    def test_general_question_uses_rag_when_knowledge_is_relevant(
+        self,
+        recognize_intent,
+        ensure_indexes,
+        rag_answer,
+        general_answer,
+    ):
+        recognize_intent.return_value = IntentResult(intent=["general"], confidence=0.9)
+        store = Mock()
+        keyword_index = Mock()
+        ensure_indexes.return_value = store, keyword_index
+        rag_answer.return_value = {
+            "answer": "TextField 可通过 controller 读取输入值。",
+            "citations": [{"chunk_id": "flutter-text-field"}],
+            "debug": {"rerank": {"applied": True}},
+        }
+        files = {
+            "csv_df": None,
+            "knowledge_chunks": [Mock()],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
+            "image_path": None,
+        }
+        fake_st = _fake_streamlit(files)
+
+        with patch.object(router, "st", fake_st):
+            result = router.process_user_message("TextField 如何获取输入内容？")
+
+        rag_answer.assert_called_once_with(
+            "TextField 如何获取输入内容？",
+            store,
+            keyword_index,
+            [],
+        )
+        general_answer.assert_not_called()
+        self.assertIn("RAG 回答", result["content"])
+        self.assertEqual(fake_st.session_state.last_intents, ["rag_qa"])
+
+    @patch("app.router.general_answer", return_value="普通回答")
+    @patch("app.router.rag_answer")
+    @patch("app.router.ensure_indexes")
+    @patch("app.router.recognize_intent")
+    def test_general_question_falls_back_when_knowledge_is_not_relevant(
+        self,
+        recognize_intent,
+        ensure_indexes,
+        rag_answer,
+        general_answer,
+    ):
+        recognize_intent.return_value = IntentResult(intent=["general"], confidence=0.9)
+        ensure_indexes.return_value = Mock(), Mock()
+        rag_answer.return_value = {
+            "answer": "资料中未找到相关信息。",
+            "citations": [],
+            "debug": {"rerank": {"applied": True}},
+        }
+        files = {
+            "csv_df": None,
+            "knowledge_chunks": [Mock()],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
+            "image_path": None,
+        }
+        fake_st = _fake_streamlit(files)
+
+        with patch.object(router, "st", fake_st):
+            result = router.process_user_message("帮我写一句生日祝福")
+
+        rag_answer.assert_called_once()
+        general_answer.assert_called_once()
+        self.assertIn("普通回答", result["content"])
+        self.assertNotIn("资料中未找到相关信息", result["content"])
+        self.assertEqual(fake_st.session_state.last_intents, ["general"])
+
+    @patch("app.router.general_answer", return_value="普通回答")
+    @patch("app.router.rag_answer")
+    @patch("app.router.ensure_indexes")
+    @patch("app.router.recognize_intent")
+    def test_general_question_does_not_trust_unfiltered_rag_fallback(
+        self,
+        recognize_intent,
+        ensure_indexes,
+        rag_answer,
+        general_answer,
+    ):
+        recognize_intent.return_value = IntentResult(intent=["general"], confidence=0.9)
+        ensure_indexes.return_value = Mock(), Mock()
+        rag_answer.return_value = {
+            "answer": "候选块生成的回答",
+            "citations": [{"chunk_id": "unverified"}],
+            "debug": {"rerank": {"applied": False}},
+        }
+        files = {
+            "csv_df": None,
+            "knowledge_chunks": [Mock()],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
+            "image_path": None,
+        }
+
+        with patch.object(router, "st", _fake_streamlit(files)):
+            result = router.process_user_message("帮我写一句生日祝福")
+
+        general_answer.assert_called_once()
+        self.assertIn("普通回答", result["content"])
+        self.assertNotIn("候选块生成的回答", result["content"])
+
     @patch("app.router.rag_answer")
     @patch("app.router.ensure_indexes")
     @patch("app.router.recognize_intent")

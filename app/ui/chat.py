@@ -5,11 +5,16 @@ import tempfile
 import pandas as pd
 import streamlit as st
 
-from app.ingestion import ingest_audio, ingest_image, ingest_pdf, ingest_text, ingest_url
+from app.ingestion import (
+    ingest_audio,
+    ingest_image,
+    ingest_pdf,
+    ingest_text_file,
+    ingest_url,
+)
 from app.knowledge_base import add_source
 from app.router import process_user_message
 from app.state import (
-    clear_uploaded_files,
     init_session_state,
     remove_uploaded_image_temp_file,
 )
@@ -26,52 +31,42 @@ def _toggle_input_panel(selected: str) -> None:
     st.rerun()
 
 
+def _existing_source_hashes() -> set[str]:
+    return {
+        source_hash
+        for source in (
+            st.session_state.uploaded_files.get("knowledge_sources") or {}
+        ).values()
+        if (source_hash := getattr(source, "content_hash", None))
+    }
+
+
 def render_chat_input_area():
     for key in _INPUT_PANELS:
         if f"show_{key}" not in st.session_state:
             st.session_state[f"show_{key}"] = False
 
-    uploaded = st.session_state.uploaded_files
-    uploaded_names = []
-    if uploaded.get("csv_df") is not None:
-        uploaded_names.append("📊CSV")
-    source_count = len(uploaded.get("knowledge_sources") or {})
-    if source_count:
-        uploaded_names.append(f"📚资料 × {source_count}")
-    if uploaded.get("image_path") is not None:
-        uploaded_names.append("👁️临时识图")
-    if uploaded_names:
-        st.caption(f"当前资料: {' | '.join(uploaded_names)}")
-
     with st.container(border=True):
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
+        c1, c2, c3 = st.columns(3)
         with c1:
-            if st.button("📚 PDF", use_container_width=True, type="secondary"):
-                _toggle_input_panel("pdf")
+            with st.popover("➕ 添加资料", use_container_width=True):
+                st.caption("添加到知识库")
+                if st.button("📚 PDF", use_container_width=True):
+                    _toggle_input_panel("pdf")
+                if st.button("📝 文档", use_container_width=True):
+                    _toggle_input_panel("text")
+                if st.button("🔗 网页", use_container_width=True):
+                    _toggle_input_panel("url")
+                if st.button("🖼️ 图片", use_container_width=True):
+                    _toggle_input_panel("image_source")
+                if st.button("🎧 音频", use_container_width=True):
+                    _toggle_input_panel("audio")
         with c2:
-            if st.button("📝 文本", use_container_width=True, type="secondary"):
-                _toggle_input_panel("text")
-        with c3:
-            if st.button("🔗 网页", use_container_width=True, type="secondary"):
-                _toggle_input_panel("url")
-        with c4:
-            if st.button("🖼️ 图片资料", use_container_width=True, type="secondary"):
-                _toggle_input_panel("image_source")
-        with c5:
-            if st.button("🎧 音频资料", use_container_width=True, type="secondary"):
-                _toggle_input_panel("audio")
-        with c6:
-            if st.button("📄 CSV", use_container_width=True, type="secondary"):
+            if st.button("📊 CSV 分析", use_container_width=True, type="secondary"):
                 _toggle_input_panel("csv")
-        with c7:
-            if st.button("👁️ 临时识图", use_container_width=True, type="secondary"):
+        with c3:
+            if st.button("👁️ 识图", use_container_width=True, type="secondary"):
                 _toggle_input_panel("img")
-        with c8:
-            if st.button("🗑️ 清空", use_container_width=True, type="secondary"):
-                clear_uploaded_files()
-                for panel in _INPUT_PANELS:
-                    st.session_state[f"show_{panel}"] = False
-                st.rerun()
 
         if st.session_state.get("show_csv"):
             file = st.file_uploader("选择 CSV 文件", type=["csv"], key="up_csv")
@@ -100,17 +95,25 @@ def render_chat_input_area():
                     st.rerun()
 
         if st.session_state.get("show_text"):
-            with st.form("add_text_source"):
-                title = st.text_input("资料标题", max_chars=160)
-                text = st.text_area("资料正文", height=180)
-                submitted = st.form_submit_button("添加文本资料")
-            if submitted:
+            revision = st.session_state.setdefault("text_upload_revision", 0)
+            file = st.file_uploader(
+                "选择 TXT 或 Markdown 文档",
+                type=["txt", "md", "markdown"],
+                key=f"up_text_{revision}",
+                max_upload_size=1,
+            )
+            if file:
                 try:
-                    source, chunks = ingest_text(title, text)
+                    source, chunks = ingest_text_file(
+                        file.read(),
+                        source_name=file.name,
+                        existing_content_hashes=_existing_source_hashes(),
+                    )
                 except ValueError as exc:
                     st.error(str(exc))
                 else:
                     add_source(st.session_state.uploaded_files, source, chunks)
+                    st.session_state.text_upload_revision += 1
                     st.session_state.show_text = False
                     st.rerun()
 
@@ -139,19 +142,12 @@ def render_chat_input_area():
             )
             if file:
                 image_bytes = file.read()
-                existing_hashes = {
-                    source_hash
-                    for source in (
-                        st.session_state.uploaded_files.get("knowledge_sources") or {}
-                    ).values()
-                    if (source_hash := getattr(source, "content_hash", None))
-                }
                 try:
                     with st.spinner("正在提取图片内容并加入知识库..."):
                         source, chunks = ingest_image(
                             image_bytes,
                             source_name=file.name,
-                            existing_content_hashes=existing_hashes,
+                            existing_content_hashes=_existing_source_hashes(),
                         )
                 except Exception as exc:
                     st.error(str(exc))
@@ -170,19 +166,12 @@ def render_chat_input_area():
             )
             if file:
                 audio_bytes = file.read()
-                existing_hashes = {
-                    source_hash
-                    for source in (
-                        st.session_state.uploaded_files.get("knowledge_sources") or {}
-                    ).values()
-                    if (source_hash := getattr(source, "content_hash", None))
-                }
                 try:
                     with st.spinner("正在转写音频并加入知识库..."):
                         source, chunks = ingest_audio(
                             audio_bytes,
                             source_name=file.name,
-                            existing_content_hashes=existing_hashes,
+                            existing_content_hashes=_existing_source_hashes(),
                         )
                 except Exception as exc:
                     st.error(str(exc))

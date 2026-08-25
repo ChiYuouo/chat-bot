@@ -9,6 +9,7 @@ import tempfile
 import uuid
 from html.parser import HTMLParser
 from io import BytesIO
+from pathlib import Path
 from typing import Any, Collection, List
 from urllib.parse import urljoin, urlparse
 
@@ -27,6 +28,7 @@ from app.source_utils import display_page
 
 
 TEXT_SOURCE_MAX_CHARS = 200_000
+TEXT_FILE_MAX_BYTES = 1024 * 1024
 URL_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
 URL_TEXT_MAX_CHARS = 120_000
 URL_REDIRECT_LIMIT = 5
@@ -243,6 +245,43 @@ def _ingest_textual_source(
 
 def ingest_text(title: str, text: str) -> tuple[KnowledgeSource, List[Document]]:
     return _ingest_textual_source(title, text, "text")
+
+
+def ingest_text_file(
+    file_bytes: bytes,
+    source_name: str,
+    existing_content_hashes: Collection[str] | None = None,
+) -> tuple[KnowledgeSource, List[Document]]:
+    """读取 TXT 或 Markdown 文件，并复用统一文本资料入库流程。"""
+    source_name = source_name.strip()
+    if not source_name:
+        raise ValueError("文档文件名不能为空")
+    if Path(source_name).suffix.lower() not in {".txt", ".md", ".markdown"}:
+        raise ValueError("只支持 TXT、MD 或 Markdown 文档")
+    if not file_bytes:
+        raise ValueError("文档内容不能为空")
+    if len(file_bytes) > TEXT_FILE_MAX_BYTES:
+        raise ValueError("文档文件不能超过 1 MB")
+
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+    if content_hash in (existing_content_hashes or ()):
+        raise ValueError("该文档已存在于知识库中，请勿重复添加")
+
+    text = None
+    for encoding in ("utf-8-sig", "gb18030"):
+        try:
+            text = file_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None or "\x00" in text:
+        raise ValueError("无法读取文档，请使用 UTF-8 或 GB18030 文本编码")
+
+    source, chunks = _ingest_textual_source(source_name, text, "text")
+    source.content_hash = content_hash
+    for chunk in chunks:
+        chunk.metadata["content_hash"] = content_hash
+    return source, chunks
 
 
 def _detect_image_media_type(image_bytes: bytes) -> str:
