@@ -1,0 +1,254 @@
+[
+  {
+    "id": "stl-01",
+    "category": "direct",
+    "question": "C++ vector 的存储结构和长度特性是什么？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["连续的顺序的储存结构", "长度可变"]
+  },
+  {
+    "id": "stl-02",
+    "category": "keyword",
+    "question": "vector 的 push_back 和 pop_back 的时间复杂度是多少？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["push_back", "均摊 O(1)"]
+  },
+  {
+    "id": "stl-03",
+    "category": "semantic",
+    "question": "扩大 vector 容量并指定默认值后，原有数据会被重置吗？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["resize", "旧元素不变"]
+  },
+  {
+    "id": "stl-04",
+    "category": "direct",
+    "question": "C++ stack 的底层容器和数据访问顺序是什么？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["双端队列", "先进后出"]
+  },
+  {
+    "id": "stl-05",
+    "category": "keyword",
+    "question": "queue 分别用什么方法读取队首和队尾？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["front", "back"]
+  },
+  {
+    "id": "stl-06",
+    "category": "semantic",
+    "question": "为什么优先队列适合持续获取当前最大值？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["常数时间的最大元素查找", "二叉堆"]
+  },
+  {
+    "id": "stl-07",
+    "category": "direct",
+    "question": "C++ set 的底层数据结构是什么？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["集合数据结构", "红黑树"]
+  },
+  {
+    "id": "stl-08",
+    "category": "semantic",
+    "question": "用中括号读取 map 中不存在的键，会对 map 产生什么影响？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["新增这个键", "默认值"]
+  },
+  {
+    "id": "stl-09",
+    "category": "semantic",
+    "question": "反复拼接很长的 C++ string 时，为什么推荐使用 +=？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["原地尾接字符串", "临时变量"]
+  },
+  {
+    "id": "stl-10",
+    "category": "keyword",
+    "question": "string 的 substr 两个参数分别表示什么？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["子串起点下标", "子串长度"]
+  },
+  {
+    "id": "stl-11",
+    "category": "direct",
+    "question": "lower_bound 和 upper_bound 使用什么查找方式？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["lower_bound", "upper_bound", "二分查找"]
+  },
+  {
+    "id": "stl-12",
+    "category": "semantic",
+    "question": "为什么只调用 unique 不能完成 vector 去重？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["重复相邻元素", "erase"]
+  },
+  {
+    "id": "stl-13",
+    "category": "follow_up",
+    "question": "那它的底层结构和访问顺序是什么？",
+    "answerable": true,
+    "expected_source": "STL.md",
+    "evidence_terms": ["双端队列", "先进后出"],
+    "history": [
+      {"role": "user", "content": "C++ stack 是什么？"},
+      {"role": "assistant", "content": "stack 是一种容器适配器。"}
+    ]
+  },
+  {
+    "id": "java-01",
+    "category": "direct",
+    "question": "Java 为什么能够跨平台运行？",
+    "answerable": true,
+    "expected_source": "2.Java基础面试篇-4.16.pdf",
+    "evidence_terms": ["字节码", "不同版本的JVM"]
+  },
+  {
+    "id": "java-02",
+    "category": "direct",
+    "question": "JVM、JDK 和 JRE 三者分别有什么作用？",
+    "answerable": true,
+    "expected_source": "2.Java基础面试篇-4.16.pdf",
+    "evidence_terms": ["JVM", "JDK", "JRE", "开发工具"]
+  },
+  {
+    "id": "java-03",
+    "category": "semantic",
+    "question": "Java 为什么同时具有解释执行和编译执行？",
+    "answerable": true,
+    "expected_source": "2.Java基础面试篇-4.16.pdf",
+    "evidence_terms": ["方法调用计数器", "JIT"]
+  },
+  {
+    "id": "java-04",
+    "category": "keyword",
+    "question": "Java 的八种基本数据类型有哪些？",
+    "answerable": true,
+    "expected_source": "2.Java基础面试篇-4.16.pdf",
+    "evidence_terms": ["byte", "short", "int", "long", "float", "double", "char", "boolean"]
+  },
+  {
+    "id": "java-05",
+    "category": "keyword",
+    "question": "Java int 类型占多少位，最大值是多少？",
+    "answerable": true,
+    "expected_source": "2.Java基础面试篇-4.16.pdf",
+    "evidence_terms": ["2147483647", "最常用的整数类型"]
+  },
+  {
+    "id": "java-06",
+    "category": "semantic",
+    "question": "Java 相比轻量级语言存在哪些开发体验和资源开销方面的缺点？",
+    "answerable": true,
+    "expected_source": "2.Java基础面试篇-4.16.pdf",
+    "evidence_terms": ["语法繁琐", "内存消耗"]
+  },
+  {
+    "id": "java-07",
+    "category": "follow_up",
+    "question": "它们三者是什么包含关系？",
+    "answerable": true,
+    "expected_source": "2.Java基础面试篇-4.16.pdf",
+    "evidence_terms": ["JVM", "JDK", "JRE"],
+    "history": [
+      {"role": "user", "content": "JVM、JDK 和 JRE 分别是什么？"},
+      {"role": "assistant", "content": "它们共同组成 Java 的开发和运行环境。"}
+    ]
+  },
+  {
+    "id": "llm-01",
+    "category": "keyword",
+    "question": "提出 Transformer 架构的论文标题是什么？",
+    "answerable": true,
+    "expected_source": "sample_document.pdf",
+    "evidence_terms": ["Attention Is All You Need", "注意力机制"]
+  },
+  {
+    "id": "llm-02",
+    "category": "direct",
+    "question": "资料中介绍的 GPT-3 有多少参数？",
+    "answerable": true,
+    "expected_source": "sample_document.pdf",
+    "evidence_terms": ["GPT-3", "1750亿"]
+  },
+  {
+    "id": "llm-03",
+    "category": "keyword",
+    "question": "InstructGPT 对应的论文标题是什么？",
+    "answerable": true,
+    "expected_source": "sample_document.pdf",
+    "evidence_terms": ["Training language models to follow instructions with human feedback"]
+  },
+  {
+    "id": "llm-04",
+    "category": "direct",
+    "question": "Sparrow 提供的证据支持回答和违反规则的比例分别是多少？",
+    "answerable": true,
+    "expected_source": "sample_document.pdf",
+    "evidence_terms": ["78%", "8%"]
+  },
+  {
+    "id": "llm-05",
+    "category": "follow_up",
+    "question": "这篇论文介绍的模型有多少参数？",
+    "answerable": true,
+    "expected_source": "sample_document.pdf",
+    "evidence_terms": ["GPT-3", "1750亿"],
+    "history": [
+      {"role": "user", "content": "Language Models are Few-Shot Learners 主要介绍了什么？"},
+      {"role": "assistant", "content": "它介绍了 GPT-3 的少样本学习能力。"}
+    ]
+  },
+  {
+    "id": "none-01",
+    "category": "unanswerable",
+    "question": "公司年假制度规定员工每年可以休多少天？",
+    "answerable": false,
+    "expected_source": null,
+    "evidence_terms": []
+  },
+  {
+    "id": "none-02",
+    "category": "unanswerable",
+    "question": "2025 年公司的销售额和净利润分别是多少？",
+    "answerable": false,
+    "expected_source": null,
+    "evidence_terms": []
+  },
+  {
+    "id": "none-03",
+    "category": "unanswerable",
+    "question": "如何配置 Nginx 反向代理和负载均衡？",
+    "answerable": false,
+    "expected_source": null,
+    "evidence_terms": []
+  },
+  {
+    "id": "none-04",
+    "category": "unanswerable",
+    "question": "Python 的 GIL 在多线程程序中有什么作用？",
+    "answerable": false,
+    "expected_source": null,
+    "evidence_terms": []
+  },
+  {
+    "id": "none-05",
+    "category": "unanswerable",
+    "question": "Kubernetes 滚动更新中的 maxUnavailable 参数如何配置？",
+    "answerable": false,
+    "expected_source": null,
+    "evidence_terms": []
+  }
+]

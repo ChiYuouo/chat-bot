@@ -34,7 +34,7 @@ htmlcov/
 *.log
 *.sqlite3
 chart.png
-chart.png
+/data/testwav.wav
 
 # OS files
 .DS_Store

@@ -1,0 +1,91 @@
+﻿mode,id,category,question,answerable,expected_source,relevant_rank,hit_at_4,abstained,correct_decision,latency_ms,rewrite_applied,rerank_applied,fallback_reason,returned_sources
+vector,stl-01,direct,C++ vector 的存储结构和长度特性是什么？,True,STL.md,1,True,False,True,154.3,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-02,keyword,vector 的 push_back 和 pop_back 的时间复杂度是多少？,True,STL.md,2,True,False,True,131.7,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-03,semantic,扩大 vector 容量并指定默认值后，原有数据会被重置吗？,True,STL.md,1,True,False,True,123.7,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-04,direct,C++ stack 的底层容器和数据访问顺序是什么？,True,STL.md,1,True,False,True,139.2,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-05,keyword,queue 分别用什么方法读取队首和队尾？,True,STL.md,1,True,False,True,110.5,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-06,semantic,为什么优先队列适合持续获取当前最大值？,True,STL.md,1,True,False,True,139.1,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-07,direct,C++ set 的底层数据结构是什么？,True,STL.md,4,True,False,True,139.0,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-08,semantic,用中括号读取 map 中不存在的键，会对 map 产生什么影响？,True,STL.md,1,True,False,True,112.7,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-09,semantic,反复拼接很长的 C++ string 时，为什么推荐使用 +=？,True,STL.md,1,True,False,True,111.0,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-10,keyword,string 的 substr 两个参数分别表示什么？,True,STL.md,1,True,False,True,113.9,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-11,direct,lower_bound 和 upper_bound 使用什么查找方式？,True,STL.md,1,True,False,True,113.5,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-12,semantic,为什么只调用 unique 不能完成 vector 去重？,True,STL.md,1,True,False,True,131.2,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,stl-13,follow_up,那它的底层结构和访问顺序是什么？,True,STL.md,4,True,False,True,147.1,False,False,,STL.md | STL.md | STL.md | STL.md
+vector,java-01,direct,Java 为什么能够跨平台运行？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,222.9,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,java-02,direct,JVM、JDK 和 JRE 三者分别有什么作用？,True,2.Java基础面试篇-4.16.pdf,3,True,False,True,126.3,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,java-03,semantic,Java 为什么同时具有解释执行和编译执行？,True,2.Java基础面试篇-4.16.pdf,2,True,False,True,136.1,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,java-04,keyword,Java 的八种基本数据类型有哪些？,True,2.Java基础面试篇-4.16.pdf,2,True,False,True,108.5,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,java-05,keyword,Java int 类型占多少位，最大值是多少？,True,2.Java基础面试篇-4.16.pdf,,False,False,False,235.6,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,java-06,semantic,Java 相比轻量级语言存在哪些开发体验和资源开销方面的缺点？,True,2.Java基础面试篇-4.16.pdf,2,True,False,True,123.1,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,java-07,follow_up,它们三者是什么包含关系？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,139.3,False,False,,2.Java基础面试篇-4.16.pdf | STL.md | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,llm-01,keyword,提出 Transformer 架构的论文标题是什么？,True,sample_document.pdf,1,True,False,True,123.5,False,False,,sample_document.pdf | sample_document.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,llm-02,direct,资料中介绍的 GPT-3 有多少参数？,True,sample_document.pdf,1,True,False,True,153.5,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+vector,llm-03,keyword,InstructGPT 对应的论文标题是什么？,True,sample_document.pdf,1,True,False,True,119.9,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+vector,llm-04,direct,Sparrow 提供的证据支持回答和违反规则的比例分别是多少？,True,sample_document.pdf,1,True,False,True,134.5,False,False,,sample_document.pdf | sample_document.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,llm-05,follow_up,这篇论文介绍的模型有多少参数？,True,sample_document.pdf,3,True,False,True,132.0,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+vector,none-01,unanswerable,公司年假制度规定员工每年可以休多少天？,False,,,False,False,False,115.9,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,none-02,unanswerable,2025 年公司的销售额和净利润分别是多少？,False,,,False,False,False,139.0,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | STL.md | STL.md
+vector,none-03,unanswerable,如何配置 Nginx 反向代理和负载均衡？,False,,,False,False,False,127.6,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,none-04,unanswerable,Python 的 GIL 在多线程程序中有什么作用？,False,,,False,False,False,125.3,False,False,,sample_document.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+vector,none-05,unanswerable,Kubernetes 滚动更新中的 maxUnavailable 参数如何配置？,False,,,False,False,False,149.8,False,False,,2.Java基础面试篇-4.16.pdf | STL.md | STL.md | 2.Java基础面试篇-4.16.pdf
+hybrid,stl-01,direct,C++ vector 的存储结构和长度特性是什么？,True,STL.md,2,True,False,True,153.9,False,False,,STL.md | STL.md | STL.md | 2.Java基础面试篇-4.16.pdf
+hybrid,stl-02,keyword,vector 的 push_back 和 pop_back 的时间复杂度是多少？,True,STL.md,1,True,False,True,143.5,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-03,semantic,扩大 vector 容量并指定默认值后，原有数据会被重置吗？,True,STL.md,1,True,False,True,133.6,False,False,,STL.md | STL.md | 2.Java基础面试篇-4.16.pdf | STL.md
+hybrid,stl-04,direct,C++ stack 的底层容器和数据访问顺序是什么？,True,STL.md,2,True,False,True,147.2,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-05,keyword,queue 分别用什么方法读取队首和队尾？,True,STL.md,4,True,False,True,151.8,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-06,semantic,为什么优先队列适合持续获取当前最大值？,True,STL.md,3,True,False,True,152.7,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-07,direct,C++ set 的底层数据结构是什么？,True,STL.md,1,True,False,True,107.3,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-08,semantic,用中括号读取 map 中不存在的键，会对 map 产生什么影响？,True,STL.md,1,True,False,True,103.3,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-09,semantic,反复拼接很长的 C++ string 时，为什么推荐使用 +=？,True,STL.md,2,True,False,True,124.5,False,False,,STL.md | STL.md | 2.Java基础面试篇-4.16.pdf | STL.md
+hybrid,stl-10,keyword,string 的 substr 两个参数分别表示什么？,True,STL.md,1,True,False,True,112.3,False,False,,STL.md | 2.Java基础面试篇-4.16.pdf | STL.md | 2.Java基础面试篇-4.16.pdf
+hybrid,stl-11,direct,lower_bound 和 upper_bound 使用什么查找方式？,True,STL.md,1,True,False,True,137.2,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-12,semantic,为什么只调用 unique 不能完成 vector 去重？,True,STL.md,1,True,False,True,124.2,False,False,,STL.md | STL.md | STL.md | STL.md
+hybrid,stl-13,follow_up,那它的底层结构和访问顺序是什么？,True,STL.md,,False,False,False,122.7,False,False,,STL.md | 2.Java基础面试篇-4.16.pdf | STL.md | 2.Java基础面试篇-4.16.pdf
+hybrid,java-01,direct,Java 为什么能够跨平台运行？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,122.0,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,java-02,direct,JVM、JDK 和 JRE 三者分别有什么作用？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,117.4,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,java-03,semantic,Java 为什么同时具有解释执行和编译执行？,True,2.Java基础面试篇-4.16.pdf,3,True,False,True,106.0,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,java-04,keyword,Java 的八种基本数据类型有哪些？,True,2.Java基础面试篇-4.16.pdf,3,True,False,True,149.0,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,java-05,keyword,Java int 类型占多少位，最大值是多少？,True,2.Java基础面试篇-4.16.pdf,,False,False,False,133.8,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,java-06,semantic,Java 相比轻量级语言存在哪些开发体验和资源开销方面的缺点？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,117.6,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,java-07,follow_up,它们三者是什么包含关系？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,111.5,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | STL.md
+hybrid,llm-01,keyword,提出 Transformer 架构的论文标题是什么？,True,sample_document.pdf,1,True,False,True,121.6,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+hybrid,llm-02,direct,资料中介绍的 GPT-3 有多少参数？,True,sample_document.pdf,1,True,False,True,125.8,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+hybrid,llm-03,keyword,InstructGPT 对应的论文标题是什么？,True,sample_document.pdf,1,True,False,True,113.1,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+hybrid,llm-04,direct,Sparrow 提供的证据支持回答和违反规则的比例分别是多少？,True,sample_document.pdf,1,True,False,True,123.4,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+hybrid,llm-05,follow_up,这篇论文介绍的模型有多少参数？,True,sample_document.pdf,,False,False,False,126.7,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+hybrid,none-01,unanswerable,公司年假制度规定员工每年可以休多少天？,False,,,False,False,False,124.0,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,none-02,unanswerable,2025 年公司的销售额和净利润分别是多少？,False,,,False,False,False,139.4,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | sample_document.pdf | 2.Java基础面试篇-4.16.pdf
+hybrid,none-03,unanswerable,如何配置 Nginx 反向代理和负载均衡？,False,,,False,False,False,133.5,False,False,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | sample_document.pdf | sample_document.pdf
+hybrid,none-04,unanswerable,Python 的 GIL 在多线程程序中有什么作用？,False,,,False,False,False,123.6,False,False,,sample_document.pdf | sample_document.pdf | sample_document.pdf | sample_document.pdf
+hybrid,none-05,unanswerable,Kubernetes 滚动更新中的 maxUnavailable 参数如何配置？,False,,,False,False,False,117.8,False,False,,2.Java基础面试篇-4.16.pdf | sample_document.pdf | STL.md | 2.Java基础面试篇-4.16.pdf
+full,stl-01,direct,C++ vector 的存储结构和长度特性是什么？,True,STL.md,1,True,False,True,8698.0,False,True,,STL.md | STL.md | STL.md | STL.md
+full,stl-02,keyword,vector 的 push_back 和 pop_back 的时间复杂度是多少？,True,STL.md,1,True,False,True,9180.0,False,True,,STL.md
+full,stl-03,semantic,扩大 vector 容量并指定默认值后，原有数据会被重置吗？,True,STL.md,1,True,False,True,8648.9,False,True,,STL.md | STL.md
+full,stl-04,direct,C++ stack 的底层容器和数据访问顺序是什么？,True,STL.md,1,True,False,True,9968.9,False,True,,STL.md | STL.md
+full,stl-05,keyword,queue 分别用什么方法读取队首和队尾？,True,STL.md,1,True,False,True,10506.8,False,True,,STL.md
+full,stl-06,semantic,为什么优先队列适合持续获取当前最大值？,True,STL.md,2,True,False,True,8446.9,False,True,,STL.md | STL.md | STL.md
+full,stl-07,direct,C++ set 的底层数据结构是什么？,True,STL.md,1,True,False,True,7742.4,False,True,,STL.md | STL.md
+full,stl-08,semantic,用中括号读取 map 中不存在的键，会对 map 产生什么影响？,True,STL.md,1,True,False,True,9652.3,False,True,,STL.md
+full,stl-09,semantic,反复拼接很长的 C++ string 时，为什么推荐使用 +=？,True,STL.md,1,True,False,True,10541.7,False,True,,STL.md
+full,stl-10,keyword,string 的 substr 两个参数分别表示什么？,True,STL.md,1,True,False,True,10403.0,False,True,,STL.md | STL.md
+full,stl-11,direct,lower_bound 和 upper_bound 使用什么查找方式？,True,STL.md,1,True,False,True,10047.6,False,True,,STL.md | STL.md
+full,stl-12,semantic,为什么只调用 unique 不能完成 vector 去重？,True,STL.md,1,True,False,True,18567.3,False,True,,STL.md
+full,stl-13,follow_up,那它的底层结构和访问顺序是什么？,True,STL.md,1,True,False,True,11577.7,True,True,,STL.md
+full,java-01,direct,Java 为什么能够跨平台运行？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,8981.2,False,True,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+full,java-02,direct,JVM、JDK 和 JRE 三者分别有什么作用？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,7836.9,False,True,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+full,java-03,semantic,Java 为什么同时具有解释执行和编译执行？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,11878.6,False,True,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+full,java-04,keyword,Java 的八种基本数据类型有哪些？,True,2.Java基础面试篇-4.16.pdf,2,True,False,True,10511.5,False,True,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+full,java-05,keyword,Java int 类型占多少位，最大值是多少？,True,2.Java基础面试篇-4.16.pdf,,False,False,False,10951.2,False,True,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+full,java-06,semantic,Java 相比轻量级语言存在哪些开发体验和资源开销方面的缺点？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,9882.3,False,True,,2.Java基础面试篇-4.16.pdf
+full,java-07,follow_up,它们三者是什么包含关系？,True,2.Java基础面试篇-4.16.pdf,1,True,False,True,12233.6,True,True,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+full,llm-01,keyword,提出 Transformer 架构的论文标题是什么？,True,sample_document.pdf,1,True,False,True,10206.0,False,True,,sample_document.pdf
+full,llm-02,direct,资料中介绍的 GPT-3 有多少参数？,True,sample_document.pdf,1,True,False,True,8574.4,False,True,,sample_document.pdf
+full,llm-03,keyword,InstructGPT 对应的论文标题是什么？,True,sample_document.pdf,1,True,False,True,10397.4,False,True,,sample_document.pdf
+full,llm-04,direct,Sparrow 提供的证据支持回答和违反规则的比例分别是多少？,True,sample_document.pdf,1,True,False,True,9273.3,False,True,,sample_document.pdf
+full,llm-05,follow_up,这篇论文介绍的模型有多少参数？,True,sample_document.pdf,1,True,False,True,11260.4,False,True,,sample_document.pdf | sample_document.pdf | sample_document.pdf
+full,none-01,unanswerable,公司年假制度规定员工每年可以休多少天？,False,,,False,True,True,9665.0,False,True,,
+full,none-02,unanswerable,2025 年公司的销售额和净利润分别是多少？,False,,,False,True,True,14988.3,False,True,,
+full,none-03,unanswerable,如何配置 Nginx 反向代理和负载均衡？,False,,,False,False,False,8956.4,False,True,,2.Java基础面试篇-4.16.pdf | 2.Java基础面试篇-4.16.pdf
+full,none-04,unanswerable,Python 的 GIL 在多线程程序中有什么作用？,False,,,False,True,True,12753.3,False,True,,
+full,none-05,unanswerable,Kubernetes 滚动更新中的 maxUnavailable 参数如何配置？,False,,,False,True,True,11785.2,False,True,,
