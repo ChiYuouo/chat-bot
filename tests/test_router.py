@@ -127,8 +127,49 @@ class RouterTests(unittest.TestCase):
         )
         general_answer.assert_not_called()
         self.assertIn("RAG 回答", result["content"])
+        self.assertIn("普通问答 (置信度: 90%)", result["content"])
+        self.assertNotIn("RAG (置信度: 90%)", result["content"])
         self.assertNotIn("执行失败", result["content"])
         self.assertEqual(fake_st.session_state.last_intents, ["rag_qa"])
+
+    @patch("app.router.general_answer", return_value="这是普通对话生成的计算器代码")
+    @patch("app.router.rag_answer")
+    @patch("app.router.ensure_indexes")
+    @patch("app.router.recognize_intent")
+    def test_adaptive_rag_falls_back_when_answer_model_rejects_context(
+        self,
+        recognize_intent,
+        ensure_indexes,
+        rag_answer,
+        general_answer,
+    ):
+        recognize_intent.return_value = IntentResult(intent=["general"], confidence=0.91)
+        ensure_indexes.return_value = Mock(), Mock()
+        rag_answer.return_value = {
+            "answer": "资料中未找到相关信息。",
+            "citations": [{
+                "chunk_id": "false-positive",
+                "location": "sample_document.pdf，第 2 页",
+                "url": None,
+            }],
+            "debug": {"rerank": {"applied": True}},
+            "has_answer": False,
+        }
+        files = {
+            "csv_df": None,
+            "knowledge_chunks": [Mock()],
+            "knowledge_store": None,
+            "knowledge_keyword_index": None,
+            "image_path": None,
+        }
+
+        with patch.object(router, "st", _fake_streamlit(files)):
+            result = router.process_user_message("一个基本的计算器")
+
+        general_answer.assert_called_once()
+        self.assertIn("这是普通对话生成的计算器代码", result["content"])
+        self.assertNotIn("资料中未找到相关信息", result["content"])
+        self.assertNotIn("引用来源", result["content"])
 
     @patch("app.router.general_answer", return_value="普通回答")
     @patch("app.router.rag_answer")

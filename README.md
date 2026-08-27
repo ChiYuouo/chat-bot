@@ -9,7 +9,7 @@
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://streamlit.io/"><img src="https://img.shields.io/badge/Streamlit-1.61%2B-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit 1.61+"></a>
   <a href="https://www.langchain.com/"><img src="https://img.shields.io/badge/LangChain-RAG-1C3C3C" alt="LangChain RAG"></a>
-  <a href="#测试"><img src="https://img.shields.io/badge/tests-79_cases-brightgreen" alt="79 tests"></a>
+  <a href="#测试"><img src="https://img.shields.io/badge/tests-90_cases-brightgreen" alt="90 tests"></a>
 </p>
 
 <p align="center">
@@ -166,7 +166,13 @@ streamlit run chatbot.py
 
 ### React 前端预览
 
-项目同时提供了一个独立的 React 前端原型，代码位于 `fronted/`：
+项目同时提供了 React 前端和复用现有业务函数的 FastAPI 适配层。先启动后端 API：
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app.api:app --reload --host 127.0.0.1 --port 8000
+```
+
+再打开另一个终端启动前端，代码位于 `fronted/`：
 
 ```powershell
 cd fronted
@@ -174,7 +180,7 @@ pnpm install
 pnpm dev
 ```
 
-打开 `http://localhost:5173`。当前页面默认使用演示回答；接入 Python Web API 的请求格式与环境变量配置见 `fronted/README.md`。
+打开 `http://localhost:5173`。React 页面已接入聊天、资料上传/查询/删除、网页导入、CSV 分析文件和临时识图；请求契约与环境变量配置见 `fronted/README.md`。FastAPI 文档位于 `http://127.0.0.1:8000/docs`。
 
 也可以提前设置环境变量：
 
@@ -205,6 +211,7 @@ export DASHSCOPE_API_KEY="your-api-key"
 ```text
 chatbot.py                  # Streamlit 应用入口
 app/
+├── api.py                  # React 前端使用的 FastAPI 适配层
 ├── capabilities/
 │   ├── rag.py              # RAG 回答生成与引用
 │   ├── data_agent.py       # CSV 分析代码生成
@@ -248,7 +255,7 @@ requirements.txt            # Python 依赖
 
 ## 测试
 
-测试不依赖真实 API Key，当前包含 14 个测试文件、79 个测试用例，覆盖资料解析、混合检索、RRF、Rewrite、精排、路由、回答引用、数据分析和受限执行等核心逻辑。
+测试不依赖真实 API Key，当前包含 15 个测试文件、90 个测试用例，覆盖 API 会话与多对话隔离、资料解析、混合检索、RRF、Rewrite、精排、路由、回答引用、数据分析和受限执行等核心逻辑。
 
 ```bash
 python -m unittest discover -s tests -v

@@ -44,6 +44,42 @@ class RagAnswerTests(unittest.TestCase):
         self.assertNotIn("每个关键信息都要说明具体来源", prompt)
         self.assertEqual(result["answer"], "使用 controller 读取输入内容。")
         self.assertEqual(len(result["citations"]), 1)
+        self.assertTrue(result["has_answer"])
+
+    @patch("app.capabilities.rag.create_chat_model")
+    @patch("app.capabilities.rag.llm_rerank")
+    @patch("app.capabilities.rag.hybrid_retrieve")
+    @patch("app.capabilities.rag.rewrite_query")
+    def test_removes_citations_when_answer_model_rejects_context(
+        self,
+        rewrite_query,
+        hybrid_retrieve,
+        llm_rerank,
+        create_chat_model,
+    ):
+        document = SimpleNamespace(
+            page_content="与问题只有表面词语相似的内容。",
+            metadata={
+                "chunk_id": "chunk-false-positive",
+                "source_id": "source-pdf",
+                "source": "sample.pdf",
+                "modality": "pdf",
+                "page": 0,
+            },
+        )
+        candidate = SearchCandidate("chunk-false-positive", document)
+        rewrite_query.return_value = "一个基本的计算器", {"applied": False}
+        hybrid_retrieve.return_value = [candidate], {"fusion_method": "rrf"}
+        llm_rerank.return_value = [candidate], {"applied": True}
+        model = Mock()
+        model.invoke.return_value = SimpleNamespace(content="资料中未找到相关信息。")
+        create_chat_model.return_value = model
+
+        result = rag_answer("一个基本的计算器", Mock(), Mock())
+
+        self.assertFalse(result["has_answer"])
+        self.assertEqual(result["citations"], [])
+        self.assertFalse(result["debug"]["has_answer"])
 
 
 if __name__ == "__main__":

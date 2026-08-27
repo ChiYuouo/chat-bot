@@ -1,16 +1,6 @@
-import { ArrowUpRight, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
-interface WelcomeProps {
-  onSelectPrompt?: (prompt: string) => void;
-}
-
-const suggestions = [
-  "分析 Q2 销售报表并总结核心增长趋势",
-  "检索最新的员工差旅与住宿报销标准",
-  "提炼周会录音中的关键决议与后续待办",
-];
-
-export function Welcome({ onSelectPrompt }: WelcomeProps) {
+export function Welcome() {
   return (
     <section className="welcome">
       <div className="welcome-hero">
@@ -23,18 +13,6 @@ export function Welcome({ onSelectPrompt }: WelcomeProps) {
         </p>
       </div>
 
-      <div className="suggestion-pills">
-        {suggestions.map((prompt) => (
-          <button
-            key={prompt}
-            className="suggestion-pill"
-            onClick={() => onSelectPrompt?.(prompt)}
-          >
-            <span>{prompt}</span>
-            <ArrowUpRight size={14} className="pill-arrow" />
-          </button>
-        ))}
-      </div>
     </section>
   );
 }

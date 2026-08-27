@@ -462,43 +462,6 @@ textarea:focus-visible {
   line-height: 1.5;
 }
 
-.suggestion-pills {
-  display: grid;
-  gap: 8px;
-  margin-top: 24px;
-  text-align: left;
-}
-
-.suggestion-pill {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: #f5f5f7;
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  font-size: 13px;
-  color: var(--apple-text);
-  transition: all 140ms ease;
-}
-
-.suggestion-pill:hover {
-  background: #ebebee;
-  border-color: rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
-}
-
-.pill-arrow {
-  color: var(--apple-subtle);
-  transition: transform 120ms ease, color 120ms ease;
-}
-
-.suggestion-pill:hover .pill-arrow {
-  color: var(--apple-blue);
-  transform: translate(2px, -2px);
-}
-
 /* ==========================================================================
    Apple Messages Style Message List
    ========================================================================== */
@@ -555,6 +518,34 @@ textarea:focus-visible {
 
 .message-bubble p + p {
   margin-top: 8px;
+}
+
+.message-chart {
+  display: block;
+  max-width: 100%;
+  margin-top: 12px;
+  border-radius: 10px;
+}
+
+.rag-debug {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.rag-debug summary {
+  cursor: pointer;
+  color: var(--apple-secondary);
+}
+
+.rag-debug pre {
+  max-height: 280px;
+  margin-top: 8px;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 11px;
+  white-space: pre-wrap;
 }
 
 .message-actions-apple {
@@ -914,6 +905,18 @@ textarea:focus-visible {
   background: #ffffff;
 }
 
+.source-item.is-processing {
+  opacity: 0.68;
+}
+
+.source-item.is-error {
+  border-color: rgba(255, 59, 48, 0.3);
+}
+
+.source-item.is-error .source-meta {
+  color: #d92d20;
+}
+
 .source-icon-wrap {
   display: grid;
   place-items: center;
@@ -963,6 +966,11 @@ textarea:focus-visible {
 
 .source-delete-btn:hover {
   color: #ff3b30;
+}
+
+.source-delete-btn:disabled {
+  cursor: default;
+  opacity: 0;
 }
 
 .source-empty {

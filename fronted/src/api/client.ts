@@ -1,21 +1,144 @@
-import type { Message } from "../types";
+import type {
+  ChatResult,
+  KnowledgeSource,
+  Message,
+  SourceKind,
+} from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const SUPPORTED_MODELS = new Set(["qwen-plus", "qwen-max"]);
+
+interface ApiErrorBody {
+  detail?: string | { message?: string };
+  message?: string;
+}
+
+interface BackendSource {
+  source_id?: string;
+  id?: string;
+  name: string;
+  modality?: SourceKind;
+  kind?: SourceKind;
+  chunk_count?: number;
+  duration_seconds?: number | null;
+  meta?: string;
+  status?: KnowledgeSource["status"];
+}
+
+interface BackendChatResponse {
+  content?: string;
+  chart_url?: string | null;
+  rag_debug?: unknown;
+}
+
+export class ApiError extends Error {
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+function getApiBaseUrl(): string {
+  const configured = localStorage.getItem("custom-api-base-url")?.trim();
+  const fromEnvironment = import.meta.env.VITE_API_BASE_URL?.trim();
+  return (configured || fromEnvironment || DEFAULT_API_BASE_URL).replace(/\/$/, "");
+}
+
+function getRequestHeaders(): Headers {
+  const headers = new Headers({ Accept: "application/json" });
+  const apiKey = localStorage.getItem("dashscope-api-key")?.trim();
+  const model = localStorage.getItem("selected-model")?.trim();
+
+  if (apiKey) headers.set("X-DashScope-Api-Key", apiKey);
+  if (model && SUPPORTED_MODELS.has(model)) {
+    headers.set("X-Model", model);
+  } else if (model) {
+    localStorage.removeItem("selected-model");
+  }
+  return headers;
+}
+
+async function readError(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as ApiErrorBody;
+    if (typeof body.detail === "string") return body.detail;
+    if (body.detail && typeof body.detail === "object" && body.detail.message) {
+      return body.detail.message;
+    }
+    if (body.message) return body.message;
+  } catch {
+    // 非 JSON 错误响应使用统一状态提示。
+  }
+  return `请求失败（${response.status}）`;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const baseUrl = getApiBaseUrl();
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const headers = getRequestHeaders();
+  new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new ApiError(await readError(response), response.status);
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("请求超时，请稍后重试");
+    }
+    throw new ApiError(error instanceof Error ? error.message : "无法连接到后端服务");
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function formatDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function normalizeSource(source: BackendSource): KnowledgeSource {
+  const kind = source.modality ?? source.kind ?? "text";
+  const details = [
+    typeof source.duration_seconds === "number"
+      ? formatDuration(source.duration_seconds)
+      : null,
+    typeof source.chunk_count === "number" ? `${source.chunk_count} 个片段` : null,
+  ].filter(Boolean);
+
+  return {
+    id: source.source_id ?? source.id ?? crypto.randomUUID(),
+    name: source.name,
+    kind,
+    meta: source.meta ?? (details.join(" · ") || "已就绪"),
+    status: source.status ?? "ready",
+  };
+}
 
 export async function sendChatMessage(
   content: string,
   history: Message[],
-): Promise<string> {
-  if (!API_BASE_URL) {
-    await new Promise((resolve) => window.setTimeout(resolve, 700));
-    return `这是 React 前端的交互预览。你刚才的问题是：“${content}”\n\n配置 VITE_API_BASE_URL 并实现 POST /api/chat 后，就可以接入项目现有的 RAG、数据分析和图片识别能力。`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/api/chat`, {
+  conversationId: string,
+): Promise<ChatResult> {
+  const response = await request<BackendChatResponse>("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message: content,
+      conversation_id: conversationId,
       history: history.map(({ role, content: messageContent }) => ({
         role,
         content: messageContent,
@@ -23,13 +146,54 @@ export async function sendChatMessage(
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`请求失败（${response.status}）`);
-  }
+  if (!response.content) throw new ApiError("接口没有返回回答内容");
+  return {
+    content: response.content,
+    chartUrl: response.chart_url ?? undefined,
+    ragDebug: response.rag_debug,
+  };
+}
 
-  const data = (await response.json()) as { content?: string };
-  if (!data.content) {
-    throw new Error("接口没有返回回答内容");
-  }
-  return data.content;
+export async function listSources(): Promise<KnowledgeSource[]> {
+  const response = await request<BackendSource[] | { sources: BackendSource[] }>(
+    "/api/sources",
+  );
+  const sources = Array.isArray(response) ? response : response.sources;
+  return sources.map(normalizeSource);
+}
+
+export async function uploadSource(
+  file: File,
+  kind: Exclude<SourceKind, "url">,
+): Promise<KnowledgeSource> {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("kind", kind);
+  const response = await request<BackendSource | { source: BackendSource }>(
+    "/api/sources",
+    { method: "POST", body },
+  );
+  return normalizeSource("source" in response ? response.source : response);
+}
+
+export async function addUrlSource(url: string, title?: string): Promise<KnowledgeSource> {
+  const response = await request<BackendSource | { source: BackendSource }>(
+    "/api/sources/url",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, title: title?.trim() || undefined }),
+    },
+  );
+  return normalizeSource("source" in response ? response.source : response);
+}
+
+export async function deleteSource(sourceId: string): Promise<void> {
+  await request<void>(`/api/sources/${encodeURIComponent(sourceId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function clearSources(): Promise<void> {
+  await request<void>("/api/sources", { method: "DELETE" });
 }

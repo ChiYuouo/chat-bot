@@ -1,5 +1,6 @@
 """知识库索引、检索和回答生成。"""
 
+import re
 import time
 from typing import Any, Dict, List
 
@@ -9,6 +10,12 @@ from app.config import Config
 from app.llm import create_chat_model
 from app.rag import BM25Index, hybrid_retrieve, llm_rerank, rewrite_query
 from app.source_utils import display_page, document_content, source_location
+
+
+def _has_context_answer(answer: str) -> bool:
+    """识别回答模型按约定返回的知识库拒答。"""
+    normalized = re.sub(r"\s+", "", answer or "")
+    return bool(normalized) and "资料中未找到相关信息" not in normalized
 
 
 def rag_answer(
@@ -55,6 +62,7 @@ def rag_answer(
             "answer": "资料中未找到相关信息。",
             "citations": [],
             "debug": debug,
+            "has_answer": False,
         }
 
     context = "\n\n".join(
@@ -101,4 +109,11 @@ def rag_answer(
         if isinstance(response.content, str)
         else response.content[0].get("text", "")
     )
-    return {"answer": answer, "citations": citations, "debug": debug}
+    has_answer = _has_context_answer(answer)
+    debug["has_answer"] = has_answer
+    return {
+        "answer": answer,
+        "citations": citations if has_answer else [],
+        "debug": debug,
+        "has_answer": has_answer,
+    }

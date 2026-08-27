@@ -36,17 +36,20 @@ export function SourcePanel({ sources, onRemove, onCollapse }: SourcePanelProps)
         {sources.map((source) => {
           const Icon = sourceIcons[source.kind] ?? FileText;
           return (
-            <div className="source-item" key={source.id}>
+            <div className={`source-item is-${source.status}`} key={source.id}>
               <div className="source-icon-wrap">
                 <Icon size={14} />
               </div>
               <div className="source-item-info">
                 <span className="source-name" title={source.name}>{source.name}</span>
-                <span className="source-meta">{source.meta}</span>
+                <span className="source-meta">
+                  {source.status === "processing" ? "正在处理…" : source.meta}
+                </span>
               </div>
               <button
                 className="source-delete-btn"
                 onClick={() => onRemove(source.id)}
+                disabled={source.status === "processing"}
                 aria-label={`移除 ${source.name}`}
                 title="移除"
               >

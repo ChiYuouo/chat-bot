@@ -1,32 +1,67 @@
 import { Database, PanelLeftClose, PanelLeftOpen, SquarePen } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { sendChatMessage } from "./api/client";
+import {
+  addUrlSource,
+  clearSources,
+  deleteSource,
+  listSources,
+  sendChatMessage,
+  uploadSource,
+} from "./api/client";
 import { Composer } from "./components/Composer";
 import { MessageList } from "./components/MessageList";
 import { SettingsModal } from "./components/SettingsModal";
 import { Sidebar } from "./components/Sidebar";
 import { SourcePanel } from "./components/SourcePanel";
 import { Welcome } from "./components/Welcome";
-import { starterSources } from "./data";
-import type { KnowledgeSource, Message } from "./types";
+import {
+  createConversation,
+  loadConversationState,
+  saveConversationState,
+  titleFromMessages,
+} from "./conversations";
+import type { ChatResult, Conversation, KnowledgeSource, Message, SourceKind } from "./types";
 
-function makeMessage(role: Message["role"], content: string): Message {
+function makeMessage(
+  role: Message["role"],
+  content: string,
+  result?: Pick<ChatResult, "chartUrl" | "ragDebug">,
+): Message {
   return {
     id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     role,
     content,
     createdAt: new Date().toISOString(),
+    chartUrl: result?.chartUrl,
+    ragDebug: result?.ragDebug,
   };
 }
 
+function getFileSize(file: File): string {
+  return file.size > 1024 * 1024
+    ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+}
+
 export default function App() {
+  const [initialConversationState] = useState(loadConversationState);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [sources, setSources] = useState(starterSources);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [sources, setSources] = useState<KnowledgeSource[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>(
+    initialConversationState.conversations,
+  );
+  const [activeConversationId, setActiveConversationId] = useState(
+    initialConversationState.activeConversationId,
+  );
+  const [messages, setMessages] = useState<Message[]>(() =>
+    initialConversationState.conversations.find(
+      (conversation) => conversation.id === initialConversationState.activeConversationId,
+    )?.messages ?? [],
+  );
   const [draft, setDraft] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const scrollAnchor = useRef<HTMLDivElement>(null);
@@ -35,8 +70,63 @@ export default function App() {
     scrollAnchor.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
+  useEffect(() => {
+    setConversations((items) => {
+      const active = items.find((conversation) => conversation.id === activeConversationId);
+      if (!active) return items;
+      const title = titleFromMessages(messages);
+      if (active.messages === messages && active.title === title) return items;
+      const updated: Conversation = {
+        ...active,
+        title,
+        messages,
+        updatedAt: new Date().toISOString(),
+      };
+      return [updated, ...items.filter((conversation) => conversation.id !== activeConversationId)];
+    });
+  }, [activeConversationId, messages]);
+
+  useEffect(() => {
+    saveConversationState(conversations, activeConversationId);
+  }, [activeConversationId, conversations]);
+
+  const refreshSources = () => {
+    void listSources()
+      .then(setSources)
+      .catch((error) => {
+        const reason = error instanceof Error ? error.message : "未知错误";
+        setMessages((items) => [
+          ...items,
+          makeMessage("assistant", `读取知识来源失败：${reason}`),
+        ]);
+      });
+  };
+
+  useEffect(() => {
+    refreshSources();
+  }, []);
+
   const newChat = () => {
-    setMessages([]);
+    if (isThinking) return;
+    const active = conversations.find(
+      (conversation) => conversation.id === activeConversationId,
+    );
+    if (active?.messages.length) {
+      const conversation = createConversation();
+      setConversations((items) => [conversation, ...items].slice(0, 50));
+      setActiveConversationId(conversation.id);
+      setMessages(conversation.messages);
+    }
+    setDraft("");
+    setSidebarOpen(false);
+  };
+
+  const selectConversation = (conversationId: string) => {
+    if (isThinking || conversationId === activeConversationId) return;
+    const conversation = conversations.find((item) => item.id === conversationId);
+    if (!conversation) return;
+    setActiveConversationId(conversation.id);
+    setMessages(conversation.messages);
     setDraft("");
     setSidebarOpen(false);
   };
@@ -47,13 +137,17 @@ export default function App() {
 
     const userMessage = makeMessage("user", content);
     const previousMessages = messages;
+    const conversationId = activeConversationId;
     setMessages((items) => [...items, userMessage]);
     setDraft("");
     setIsThinking(true);
 
     try {
-      const answer = await sendChatMessage(content, previousMessages);
-      setMessages((items) => [...items, makeMessage("assistant", answer)]);
+      const result = await sendChatMessage(content, previousMessages, conversationId);
+      setMessages((items) => [
+        ...items,
+        makeMessage("assistant", result.content, result),
+      ]);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "未知错误";
       setMessages((items) => [
@@ -79,13 +173,17 @@ export default function App() {
     }
     if (lastUserIndex === -1) return;
     const lastPrompt = messages[lastUserIndex].content;
+    const conversationId = activeConversationId;
     setMessages((prev) => prev.slice(0, lastUserIndex + 1));
     setIsThinking(true);
     const previousMessages = messages.slice(0, lastUserIndex);
 
-    sendChatMessage(lastPrompt, previousMessages)
-      .then((answer) => {
-        setMessages((items) => [...items, makeMessage("assistant", answer)]);
+    sendChatMessage(lastPrompt, previousMessages, conversationId)
+      .then((result) => {
+        setMessages((items) => [
+          ...items,
+          makeMessage("assistant", result.content, result),
+        ]);
       })
       .catch((error) => {
         const reason = error instanceof Error ? error.message : "未知错误";
@@ -99,8 +197,87 @@ export default function App() {
       });
   };
 
-  const addSource = (source: KnowledgeSource) => {
-    setSources((items) => [source, ...items]);
+  const handleUploadFile = async (
+    file: File,
+    kind: Exclude<SourceKind, "url">,
+  ) => {
+    const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const pendingSource: KnowledgeSource = {
+      id: pendingId,
+      name: file.name,
+      kind,
+      meta: getFileSize(file),
+      status: "processing",
+    };
+    setSources((items) => [pendingSource, ...items]);
+
+    try {
+      const source = await uploadSource(file, kind);
+      setSources((items) => items.map((item) => (item.id === pendingId ? source : item)));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "上传失败";
+      setSources((items) =>
+        items.map((item) =>
+          item.id === pendingId ? { ...item, status: "error", meta: reason } : item,
+        ),
+      );
+    }
+  };
+
+  const handleAddUrl = async (url: string) => {
+    const pendingId = `pending-url-${Date.now()}`;
+    const pendingSource: KnowledgeSource = {
+      id: pendingId,
+      name: url.replace(/^https?:\/\//, ""),
+      kind: "url",
+      meta: "网页",
+      status: "processing",
+    };
+    setSources((items) => [pendingSource, ...items]);
+
+    try {
+      const source = await addUrlSource(url);
+      setSources((items) => items.map((item) => (item.id === pendingId ? source : item)));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "网页导入失败";
+      setSources((items) =>
+        items.map((item) =>
+          item.id === pendingId ? { ...item, status: "error", meta: reason } : item,
+        ),
+      );
+    }
+  };
+
+  const handleRemoveSource = async (sourceId: string) => {
+    const source = sources.find((item) => item.id === sourceId);
+    if (!source) return;
+    if (source.status === "error") {
+      setSources((items) => items.filter((item) => item.id !== sourceId));
+      return;
+    }
+
+    setSources((items) => items.filter((item) => item.id !== sourceId));
+    try {
+      await deleteSource(sourceId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "删除失败";
+      setSources((items) => [{ ...source, status: "error", meta: reason }, ...items]);
+    }
+  };
+
+  const handleClearSources = async () => {
+    const previousSources = sources;
+    setSources([]);
+    try {
+      await clearSources();
+    } catch (error) {
+      setSources(previousSources);
+      const reason = error instanceof Error ? error.message : "清空失败";
+      setMessages((items) => [
+        ...items,
+        makeMessage("assistant", `清空资料失败：${reason}`),
+      ]);
+    }
   };
 
   const toggleLeftPanel = () => {
@@ -136,10 +313,14 @@ export default function App() {
       >
         <Sidebar
           sourceCount={sources.length}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
           isOpen={sidebarOpen}
+          disabled={isThinking}
           onClose={() => setSidebarOpen(false)}
           onNewChat={newChat}
-          onClearSources={() => setSources([])}
+          onSelectConversation={selectConversation}
+          onClearSources={() => void handleClearSources()}
           onOpenSettings={() => setSettingsOpen(true)}
         />
 
@@ -163,6 +344,7 @@ export default function App() {
                 <button
                   className="icon-btn-apple"
                   onClick={newChat}
+                  disabled={isThinking}
                   title="新建对话"
                   aria-label="新建对话"
                 >
@@ -185,7 +367,7 @@ export default function App() {
           <section className="chat-surface">
             <div className={`chat-content ${messages.length ? "has-messages" : "is-empty"}`}>
               <div className={`welcome-state ${messages.length ? "is-hidden" : ""}`}>
-                <Welcome onSelectPrompt={(prompt) => void send(prompt)} />
+                <Welcome />
               </div>
               <div className={`conversation-state ${messages.length ? "" : "is-hidden"}`}>
                 <MessageList
@@ -202,7 +384,8 @@ export default function App() {
               disabled={isThinking}
               onChange={setDraft}
               onSend={() => void send()}
-              onAddSource={addSource}
+              onUploadFile={(file, kind) => void handleUploadFile(file, kind)}
+              onAddUrl={(url) => void handleAddUrl(url)}
             />
           </section>
         </main>
@@ -210,7 +393,7 @@ export default function App() {
         <div className="desktop-source-panel">
           <SourcePanel
             sources={sources}
-            onRemove={(id) => setSources((items) => items.filter((item) => item.id !== id))}
+            onRemove={(id) => void handleRemoveSource(id)}
             onCollapse={() => setRightCollapsed(true)}
           />
         </div>
@@ -226,13 +409,17 @@ export default function App() {
         <div className="source-drawer-content">
           <SourcePanel
             sources={sources}
-            onRemove={(id) => setSources((items) => items.filter((item) => item.id !== id))}
+            onRemove={(id) => void handleRemoveSource(id)}
             onCollapse={() => setSourcePanelOpen(false)}
           />
         </div>
       </div>
 
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSaved={refreshSources}
+      />
     </div>
   );
 }

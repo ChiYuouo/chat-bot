@@ -1,27 +1,29 @@
 import { MessageSquare, Settings, SquarePen, Trash2, X } from "lucide-react";
+import type { Conversation } from "../types";
 import { BrandMark } from "./BrandMark";
 
 interface SidebarProps {
   sourceCount: number;
+  conversations: Conversation[];
+  activeConversationId: string;
   isOpen: boolean;
+  disabled?: boolean;
   onClose: () => void;
   onNewChat: () => void;
+  onSelectConversation: (conversationId: string) => void;
   onClearSources: () => void;
   onOpenSettings: () => void;
 }
 
-const mockSessions = [
-  { id: "1", title: "当前对话", isActive: true },
-  { id: "2", title: "Q2 销售数据分析", isActive: false },
-  { id: "3", title: "差旅与住宿报销标准", isActive: false },
-  { id: "4", title: "周会录音要点提炼", isActive: false },
-];
-
 export function Sidebar({
   sourceCount,
+  conversations,
+  activeConversationId,
   isOpen,
+  disabled,
   onClose,
   onNewChat,
+  onSelectConversation,
   onClearSources,
   onOpenSettings,
 }: SidebarProps) {
@@ -34,6 +36,7 @@ export function Sidebar({
           <button
             className="icon-btn-apple"
             onClick={onNewChat}
+            disabled={disabled}
             title="新建对话"
             aria-label="新建对话"
           >
@@ -53,14 +56,15 @@ export function Sidebar({
       <div className="sidebar-section">
         <span className="sidebar-section-title">最近对话</span>
         <div className="session-list">
-          {mockSessions.map((session) => (
+          {conversations.map((conversation) => (
             <button
-              key={session.id}
-              className={`session-row ${session.isActive ? "is-active" : ""}`}
-              onClick={session.isActive ? undefined : onNewChat}
+              key={conversation.id}
+              className={`session-row ${conversation.id === activeConversationId ? "is-active" : ""}`}
+              onClick={() => onSelectConversation(conversation.id)}
+              disabled={disabled || conversation.id === activeConversationId}
             >
               <MessageSquare size={13} className="session-row-icon" />
-              <span className="session-row-text">{session.title}</span>
+              <span className="session-row-text">{conversation.title}</span>
             </button>
           ))}
         </div>

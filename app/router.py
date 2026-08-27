@@ -2,6 +2,7 @@
 
 import json
 import re
+from contextlib import nullcontext
 from typing import Any, Dict
 
 import streamlit as st
@@ -59,8 +60,26 @@ def _format_citations(citations: list[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def process_user_message(user_input: str) -> Dict[str, Any]:
-    files = st.session_state.uploaded_files
+def process_user_message(
+    user_input: str,
+    *,
+    uploaded_files: Dict[str, Any] | None = None,
+    messages: list[Dict[str, Any]] | None = None,
+    last_intents: list[str] | None = None,
+    spinner_factory: Any | None = None,
+) -> Dict[str, Any]:
+    """处理一次对话，可由 Streamlit 或 HTTP 适配层复用。"""
+    uses_streamlit_state = uploaded_files is None
+    files = uploaded_files if uploaded_files is not None else st.session_state.uploaded_files
+    message_history = messages if messages is not None else st.session_state.messages
+    previous_intents = (
+        list(last_intents)
+        if last_intents is not None
+        else list(getattr(st.session_state, "last_intents", []))
+    )
+    spinner = spinner_factory or (
+        st.spinner if uses_streamlit_state else lambda _message: nullcontext()
+    )
     chart = None
     rag_debug = None
     prefetched_rag_result = None
@@ -68,12 +87,13 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
     try:
         intent_result = recognize_intent(user_input)
     except Exception as exc:
-        with st.spinner("意图识别失败，正在使用普通问答..."):
-            answer = general_answer(user_input, st.session_state.messages)
+        with spinner("意图识别失败，正在使用普通问答..."):
+            answer = general_answer(user_input, message_history)
         return {
             "content": f"⚠️ **意图识别已降级**: {exc}\n\n💬 **回答**:\n{answer}",
             "chart": None,
             "rag_debug": None,
+            "intents": ["general"],
         }
 
     intents = intent_result.intent
@@ -86,7 +106,10 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         intents = ["general"]
         fallback_reason = f"意图置信度较低（{intent_result.confidence:.0%}）"
 
-    previous_intents = getattr(st.session_state, "last_intents", [])
+    # 展示模型最初识别出的意图；后续自适应切换通过 routing_note 单独说明，
+    # 避免把 general 的置信度错误标成 RAG 置信度。
+    display_intents = list(intents)
+
     # “那最多几天”通常会被意图模型判为 general；结合上一轮意图把短追问送回 RAG，
     # 后续 Rewrite 才有机会将其中的指代补全为可独立检索的问题。
     if (
@@ -112,10 +135,10 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
         and bool(files.get("knowledge_chunks"))
     ):
         try:
-            with st.spinner("正在检查知识库中是否有相关资料..."):
+            with spinner("正在检查知识库中是否有相关资料..."):
                 store, keyword_index = ensure_indexes(files)
                 rag_history = (
-                    st.session_state.messages[-2:]
+                    message_history[-2:]
                     if "rag_qa" in previous_intents
                     else []
                 )
@@ -129,7 +152,11 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
             rerank_applied = bool(
                 (rag_debug or {}).get("rerank", {}).get("applied")
             )
-            if candidate_result.get("citations") and rerank_applied:
+            has_answer = candidate_result.get(
+                "has_answer",
+                bool(candidate_result.get("citations")),
+            )
+            if candidate_result.get("citations") and rerank_applied and has_answer:
                 intents = ["rag_qa"]
                 prefetched_rag_result = candidate_result
                 fallback_reason = None
@@ -138,7 +165,7 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
             # 自适应预检是普通问答的增强能力，失败不能阻断原有普通问答。
             rag_debug = {"adaptive_rag_error": str(exc)}
 
-    intent_str = ", ".join(get_intent_badge(intent) for intent in intents)
+    intent_str = ", ".join(get_intent_badge(intent) for intent in display_intents)
     confidence_str = f"{intent_result.confidence:.0%}"
     response_parts = [f"🎆 **意图识别**: {intent_str} (置信度: {confidence_str})\n"]
     if fallback_reason:
@@ -154,14 +181,14 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                 else:
                     result = prefetched_rag_result
                     if result is None:
-                        with st.spinner("正在准备知识库检索索引..."):
+                        with spinner("正在准备知识库检索索引..."):
                             store, keyword_index = ensure_indexes(files)
                         rag_history = (
-                            st.session_state.messages[-2:]
+                            message_history[-2:]
                             if "rag_qa" in previous_intents
                             else []
                         )
-                        with st.spinner("正在改写问题、混合检索并精排..."):
+                        with spinner("正在改写问题、混合检索并精排..."):
                             result = rag_answer(
                                 user_input,
                                 store,
@@ -178,7 +205,7 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                 if files["csv_df"] is None:
                     response_parts.append("⚠️ **数据分析**需要先上传 CSV 文件（在左侧边栏上传）\n")
                 else:
-                    with st.spinner("正在生成并安全执行代码..."):
+                    with spinner("正在生成并安全执行代码..."):
                         result = agent_answer(files["csv_df"], user_input)
                     response_parts.append(f"📊 **数据分析结果**:\n```\n{result['answer']}\n```\n")
                     response_parts.append(f"\n📝 **生成的代码**:\n```python\n{result['code']}\n```\n")
@@ -190,7 +217,7 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                 if files["image_path"] is None:
                     response_parts.append("⚠️ **图片识别**需要先上传图片（在左侧边栏上传）\n")
                 else:
-                    with st.spinner("正在识别图片..."):
+                    with spinner("正在识别图片..."):
                         result = vision_answer(files["image_path"], user_input)
                     response_parts.append(f"🖼️ **图片识别结果**:\n{result['answer']}\n")
                     if result.get("contract"):
@@ -200,15 +227,17 @@ def process_user_message(user_input: str) -> Dict[str, Any]:
                         )
 
             else:
-                with st.spinner("正在思考..."):
-                    answer = general_answer(user_input, st.session_state.messages)
+                with spinner("正在思考..."):
+                    answer = general_answer(user_input, message_history)
                 response_parts.append(f"💬 **回答**:\n{answer}\n")
         except Exception as exc:
             response_parts.append(f"❌ **{get_intent_badge(intent)} 执行失败**: {exc}\n")
 
-    st.session_state.last_intents = intents
+    if uses_streamlit_state:
+        st.session_state.last_intents = intents
     return {
         "content": "\n".join(response_parts),
         "chart": chart,
         "rag_debug": rag_debug,
+        "intents": intents,
     }

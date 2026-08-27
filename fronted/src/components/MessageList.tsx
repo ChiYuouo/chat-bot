@@ -34,6 +34,15 @@ export function MessageList({ messages, isThinking, onRegenerate }: MessageListP
                 {message.content.split("\n").map((line, index) => (
                   <p key={`${message.id}-${index}`}>{line || <br />}</p>
                 ))}
+                {message.chartUrl && (
+                  <img className="message-chart" src={message.chartUrl} alt="数据分析图表" />
+                )}
+                {message.ragDebug !== undefined && (
+                  <details className="rag-debug">
+                    <summary>查看 RAG 检索过程</summary>
+                    <pre>{JSON.stringify(message.ragDebug, null, 2)}</pre>
+                  </details>
+                )}
               </div>
 
               {!isUser && (

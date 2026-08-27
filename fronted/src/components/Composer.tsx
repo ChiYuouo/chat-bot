@@ -1,6 +1,6 @@
-import { ArrowUp, FileImage, FileSpreadsheet, FileText, Globe, Plus, X } from "lucide-react";
+import { ArrowUp, AudioLines, Eye, FileImage, FileSpreadsheet, FileText, Globe, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { KnowledgeSource, SourceKind } from "../types";
+import type { SourceKind } from "../types";
 
 const accepts: Record<Exclude<SourceKind, "url">, string> = {
   pdf: ".pdf",
@@ -16,7 +16,8 @@ interface ComposerProps {
   disabled?: boolean;
   onChange: (value: string) => void;
   onSend: () => void;
-  onAddSource: (source: KnowledgeSource) => void;
+  onUploadFile: (file: File, kind: Exclude<SourceKind, "url">) => void;
+  onAddUrl: (url: string) => void;
 }
 
 export function Composer({
@@ -24,7 +25,8 @@ export function Composer({
   disabled,
   onChange,
   onSend,
-  onAddSource,
+  onUploadFile,
+  onAddUrl,
 }: ComposerProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [urlMode, setUrlMode] = useState(false);
@@ -62,30 +64,13 @@ export function Composer({
 
   const handleFile = (file?: File) => {
     if (!file) return;
-    const kind = pendingKind.current;
-    const size =
-      file.size > 1024 * 1024
-        ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-        : `${Math.max(1, Math.round(file.size / 1024))} KB`;
-    onAddSource({
-      id: `${kind}-${Date.now()}`,
-      name: file.name,
-      kind,
-      meta: kind === "vision" ? `识图 · ${size}` : size,
-      status: "ready",
-    });
+    onUploadFile(file, pendingKind.current);
   };
 
   const addUrl = () => {
     const normalized = urlValue.trim();
     if (!normalized) return;
-    onAddSource({
-      id: `url-${Date.now()}`,
-      name: normalized.replace(/^https?:\/\//, ""),
-      kind: "url",
-      meta: "网页",
-      status: "ready",
-    });
+    onAddUrl(normalized);
     setUrlValue("");
     setUrlMode(false);
   };
@@ -98,7 +83,10 @@ export function Composer({
         ref={fileInputRef}
         className="visually-hidden"
         type="file"
-        onChange={(event) => handleFile(event.target.files?.[0])}
+        onChange={(event) => {
+          handleFile(event.target.files?.[0]);
+          event.target.value = "";
+        }}
       />
 
       {urlMode && (
@@ -148,10 +136,18 @@ export function Composer({
                 <FileImage size={15} className="menu-icon-img" />
                 <span>图片资料</span>
               </button>
+              <button onClick={() => chooseFile("audio")}>
+                <AudioLines size={15} className="menu-icon-audio" />
+                <span>音频资料</span>
+              </button>
               <div className="apple-menu-divider" />
               <button onClick={() => { setUrlMode(true); setMenuOpen(false); }}>
                 <Globe size={15} className="menu-icon-web" />
                 <span>网页链接</span>
+              </button>
+              <button onClick={() => chooseFile("vision")}>
+                <Eye size={15} className="menu-icon-img" />
+                <span>临时识图</span>
               </button>
             </div>
           )}

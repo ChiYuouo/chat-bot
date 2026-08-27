@@ -1,20 +1,21 @@
-import { Check, Cpu, Eye, EyeOff, KeyRound, Server, Sparkles, X } from "lucide-react";
+import { Check, Cpu, Eye, EyeOff, KeyRound, Server, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
 const models = [
+  { id: "", name: "跟随后端配置", desc: "不覆盖后端模型，使用环境变量或服务端默认值" },
   { id: "qwen-plus", name: "Qwen-Plus", desc: "通用均衡 · 推荐用于企业常规知识检索与对话" },
   { id: "qwen-max", name: "Qwen-Max", desc: "旗舰推理 · 复杂逻辑梳理、代码生成与长文本洞察" },
-  { id: "deepseek-r1", name: "DeepSeek-R1", desc: "深度思考 · 专注于严密数理推理与多步溯源" },
 ];
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) {
   const [key, setKey] = useState("");
-  const [selectedModel, setSelectedModel] = useState("qwen-plus");
+  const [selectedModel, setSelectedModel] = useState("");
   const [apiBaseUrl, setApiBaseUrl] = useState("");
   const [visible, setVisible] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -22,7 +23,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (isOpen) {
       setKey(localStorage.getItem("dashscope-api-key") ?? "");
-      setSelectedModel(localStorage.getItem("selected-model") ?? "qwen-plus");
+      const storedModel = localStorage.getItem("selected-model");
+      const nextModel = models.some((model) => model.id === storedModel)
+        ? storedModel!
+        : "";
+      setSelectedModel(nextModel);
       setApiBaseUrl(localStorage.getItem("custom-api-base-url") ?? "");
     }
   }, [isOpen]);
@@ -30,9 +35,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   if (!isOpen) return null;
 
   const save = () => {
-    localStorage.setItem("dashscope-api-key", key.trim());
-    localStorage.setItem("selected-model", selectedModel);
-    localStorage.setItem("custom-api-base-url", apiBaseUrl.trim());
+    const normalizedKey = key.trim();
+    const normalizedUrl = apiBaseUrl.trim();
+    if (normalizedKey) localStorage.setItem("dashscope-api-key", normalizedKey);
+    else localStorage.removeItem("dashscope-api-key");
+    if (selectedModel) localStorage.setItem("selected-model", selectedModel);
+    else localStorage.removeItem("selected-model");
+    if (normalizedUrl) localStorage.setItem("custom-api-base-url", normalizedUrl);
+    else localStorage.removeItem("custom-api-base-url");
+    onSaved?.();
     setSaved(true);
     window.setTimeout(() => {
       setSaved(false);
@@ -105,7 +116,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {visible ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <p className="field-help">密钥将存储在当前浏览器本地 LocalStorage，保障调用隐私。</p>
+            <p className="field-help">留空时不发送密钥，由后端读取 <code>DASHSCOPE_API_KEY</code>。</p>
           </div>
 
           {/* API Base URL Field */}
@@ -121,7 +132,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               placeholder="http://localhost:8000"
               onChange={(event) => setApiBaseUrl(event.target.value)}
             />
-            <p className="field-help">留空则自动读取环境变量 <code>VITE_API_BASE_URL</code>。</p>
+            <p className="field-help">留空则读取 <code>VITE_API_BASE_URL</code>，未配置时使用 http://localhost:8000。</p>
           </div>
         </div>
 
