@@ -5,7 +5,7 @@ import {
   clearSources,
   deleteSource,
   listSources,
-  sendChatMessage,
+  streamChatMessage,
   uploadSource,
 } from "./api/client";
 import { Composer } from "./components/Composer";
@@ -67,7 +67,7 @@ export default function App() {
   const scrollAnchor = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollAnchor.current?.scrollIntoView({ behavior: "smooth" });
+    scrollAnchor.current?.scrollIntoView({ behavior: isThinking ? "auto" : "smooth" });
   }, [messages, isThinking]);
 
   useEffect(() => {
@@ -131,6 +131,53 @@ export default function App() {
     setSidebarOpen(false);
   };
 
+  const streamAnswer = async (
+    prompt: string,
+    history: Message[],
+    conversationId: string,
+    pendingMessage: Message,
+  ) => {
+    const result = await streamChatMessage(
+      prompt,
+      history,
+      conversationId,
+      (delta) => {
+        setMessages((items) => {
+          const existing = items.find((item) => item.id === pendingMessage.id);
+          if (!existing) {
+            return [...items, { ...pendingMessage, content: delta }];
+          }
+          return items.map((item) =>
+            item.id === pendingMessage.id
+              ? { ...item, content: item.content + delta }
+              : item,
+          );
+        });
+      },
+    );
+
+    const finalMessage = makeMessage("assistant", result.content, result);
+    finalMessage.id = pendingMessage.id;
+    finalMessage.createdAt = pendingMessage.createdAt;
+    setMessages((items) =>
+      items.some((item) => item.id === pendingMessage.id)
+        ? items.map((item) => (item.id === pendingMessage.id ? finalMessage : item))
+        : [...items, finalMessage],
+    );
+  };
+
+  const showStreamError = (pendingMessage: Message, text: string) => {
+    setMessages((items) => {
+      const existing = items.find((item) => item.id === pendingMessage.id);
+      if (!existing) return [...items, { ...pendingMessage, content: text }];
+      return items.map((item) =>
+        item.id === pendingMessage.id
+          ? { ...item, content: `${item.content}\n\n> ⚠️ ${text}` }
+          : item,
+      );
+    });
+  };
+
   const send = async (suggestedPrompt?: string) => {
     const content = (suggestedPrompt ?? draft).trim();
     if (!content || isThinking) return;
@@ -138,25 +185,19 @@ export default function App() {
     const userMessage = makeMessage("user", content);
     const previousMessages = messages;
     const conversationId = activeConversationId;
+    const pendingMessage = makeMessage("assistant", "");
     setMessages((items) => [...items, userMessage]);
     setDraft("");
     setIsThinking(true);
 
     try {
-      const result = await sendChatMessage(content, previousMessages, conversationId);
-      setMessages((items) => [
-        ...items,
-        makeMessage("assistant", result.content, result),
-      ]);
+      await streamAnswer(content, previousMessages, conversationId, pendingMessage);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "未知错误";
-      setMessages((items) => [
-        ...items,
-        makeMessage(
-          "assistant",
-          `暂时无法连接到后端：${reason}。请检查服务配置。`,
-        ),
-      ]);
+      showStreamError(
+        pendingMessage,
+        `暂时无法连接到后端：${reason}。请检查服务配置。`,
+      );
     } finally {
       setIsThinking(false);
     }
@@ -177,20 +218,12 @@ export default function App() {
     setMessages((prev) => prev.slice(0, lastUserIndex + 1));
     setIsThinking(true);
     const previousMessages = messages.slice(0, lastUserIndex);
+    const pendingMessage = makeMessage("assistant", "");
 
-    sendChatMessage(lastPrompt, previousMessages, conversationId)
-      .then((result) => {
-        setMessages((items) => [
-          ...items,
-          makeMessage("assistant", result.content, result),
-        ]);
-      })
+    streamAnswer(lastPrompt, previousMessages, conversationId, pendingMessage)
       .catch((error) => {
         const reason = error instanceof Error ? error.message : "未知错误";
-        setMessages((items) => [
-          ...items,
-          makeMessage("assistant", `重新生成失败：${reason}`),
-        ]);
+        showStreamError(pendingMessage, `重新生成失败：${reason}`);
       })
       .finally(() => {
         setIsThinking(false);

@@ -32,6 +32,11 @@ interface BackendChatResponse {
   rag_debug?: unknown;
 }
 
+interface BackendChatStreamEvent extends BackendChatResponse {
+  type?: "status" | "delta" | "done" | "error";
+  message?: string;
+}
+
 export class ApiError extends Error {
   readonly status?: number;
 
@@ -150,8 +155,98 @@ export async function sendChatMessage(
   return {
     content: response.content,
     chartUrl: response.chart_url ?? undefined,
-    ragDebug: response.rag_debug,
+    ragDebug: response.rag_debug ?? undefined,
   };
+}
+
+export async function streamChatMessage(
+  content: string,
+  history: Message[],
+  conversationId: string,
+  onDelta: (content: string) => void,
+): Promise<ChatResult> {
+  const controller = new AbortController();
+  let timeoutId = 0;
+  const resetTimeout = () => {
+    window.clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  };
+  resetTimeout();
+
+  const headers = getRequestHeaders();
+  headers.set("Accept", "application/x-ndjson");
+  headers.set("Content-Type", "application/json");
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/chat/stream`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      signal: controller.signal,
+      body: JSON.stringify({
+        message: content,
+        conversation_id: conversationId,
+        history: history.map(({ role, content: messageContent }) => ({
+          role,
+          content: messageContent,
+        })),
+      }),
+    });
+
+    if (!response.ok) throw new ApiError(await readError(response), response.status);
+    if (!response.body) throw new ApiError("当前浏览器不支持流式响应");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let result: ChatResult | undefined;
+
+    const consumeLine = (line: string) => {
+      if (!line.trim()) return;
+      let event: BackendChatStreamEvent;
+      try {
+        event = JSON.parse(line) as BackendChatStreamEvent;
+      } catch {
+        throw new ApiError("流式响应格式无效");
+      }
+
+      if (event.type === "delta" && event.content) {
+        onDelta(event.content);
+      } else if (event.type === "done") {
+        if (!event.content) throw new ApiError("接口没有返回回答内容");
+        result = {
+          content: event.content,
+          chartUrl: event.chart_url ?? undefined,
+          ragDebug: event.rag_debug ?? undefined,
+        };
+      } else if (event.type === "error") {
+        throw new ApiError(event.message || "生成回答失败");
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      resetTimeout();
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      lines.forEach(consumeLine);
+    }
+
+    buffer += decoder.decode();
+    consumeLine(buffer);
+    if (!result) throw new ApiError("流式响应意外结束");
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("请求超时，请稍后重试");
+    }
+    throw new ApiError(error instanceof Error ? error.message : "无法连接到后端服务");
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export async function listSources(): Promise<KnowledgeSource[]> {

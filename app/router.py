@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import Callable
 from contextlib import nullcontext
 from typing import Any, Dict
 
@@ -67,6 +68,7 @@ def process_user_message(
     messages: list[Dict[str, Any]] | None = None,
     last_intents: list[str] | None = None,
     spinner_factory: Any | None = None,
+    stream_callback: Callable[[str], None] | None = None,
 ) -> Dict[str, Any]:
     """处理一次对话，可由 Streamlit 或 HTTP 适配层复用。"""
     uses_streamlit_state = uploaded_files is None
@@ -88,7 +90,7 @@ def process_user_message(
         intent_result = recognize_intent(user_input)
     except Exception as exc:
         with spinner("意图识别失败，正在使用普通问答..."):
-            answer = general_answer(user_input, message_history)
+            answer = general_answer(user_input, message_history, stream_callback)
         return {
             "content": f"⚠️ **意图识别已降级**: {exc}\n\n💬 **回答**:\n{answer}",
             "chart": None,
@@ -228,7 +230,7 @@ def process_user_message(
 
             else:
                 with spinner("正在思考..."):
-                    answer = general_answer(user_input, message_history)
+                    answer = general_answer(user_input, message_history, stream_callback)
                 response_parts.append(f"💬 **回答**:\n{answer}\n")
         except Exception as exc:
             response_parts.append(f"❌ **{get_intent_badge(intent)} 执行失败**: {exc}\n")

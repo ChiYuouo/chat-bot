@@ -1,3 +1,4 @@
+import json
 import os
 import unittest
 from types import SimpleNamespace
@@ -149,6 +150,40 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(os.environ.get("DASHSCOPE_API_KEY"), original_key)
+
+    @patch("app.api.process_user_message")
+    def test_chat_stream_returns_delta_and_done_events(self, process_user_message):
+        def answer(_message, **kwargs):
+            kwargs["stream_callback"]("你")
+            kwargs["stream_callback"]("好")
+            return {
+                "content": "💬 **回答**:\n你好",
+                "chart": None,
+                "rag_debug": None,
+                "intents": ["general"],
+            }
+
+        process_user_message.side_effect = answer
+
+        response = self.client.post(
+            "/api/chat/stream",
+            json={"message": "你好", "history": []},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers["content-type"].startswith("application/x-ndjson"))
+        events = [json.loads(line) for line in response.text.splitlines()]
+        self.assertEqual([event["type"] for event in events], [
+            "status",
+            "delta",
+            "delta",
+            "done",
+        ])
+        self.assertEqual(
+            [event["content"] for event in events if event["type"] == "delta"],
+            ["你", "好"],
+        )
+        self.assertEqual(events[-1]["content"], "💬 **回答**:\n你好")
 
     @patch("app.api.process_user_message")
     def test_conversations_keep_last_intents_isolated(self, process_user_message):

@@ -1,5 +1,8 @@
 import { Check, Copy, RotateCcw } from "lucide-react";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import type { Message } from "../types";
 
 interface MessageListProps {
@@ -10,6 +13,8 @@ interface MessageListProps {
 
 export function MessageList({ messages, isThinking, onRegenerate }: MessageListProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const lastMessage = messages[messages.length - 1];
+  const isReceivingAnswer = isThinking && lastMessage?.role === "assistant";
 
   const handleCopy = async (id: string, text: string) => {
     try {
@@ -26,14 +31,29 @@ export function MessageList({ messages, isThinking, onRegenerate }: MessageListP
       {messages.map((message) => {
         const isUser = message.role === "user";
         const isCopied = copiedId === message.id;
+        const isStreamingMessage = isReceivingAnswer && message.id === lastMessage.id;
 
         return (
           <article className={`message-row message-${message.role}`} key={message.id}>
             <div className="message-bubble-wrap">
               <div className="message-bubble">
-                {message.content.split("\n").map((line, index) => (
-                  <p key={`${message.id}-${index}`}>{line || <br />}</p>
-                ))}
+                {isUser ? (
+                  <p className="plain-message">{message.content}</p>
+                ) : (
+                  <div className="markdown-content">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeSanitize]}
+                      components={{
+                        a: ({ ...props }) => (
+                          <a {...props} target="_blank" rel="noreferrer noopener" />
+                        ),
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
                 {message.chartUrl && (
                   <img className="message-chart" src={message.chartUrl} alt="数据分析图表" />
                 )}
@@ -45,7 +65,7 @@ export function MessageList({ messages, isThinking, onRegenerate }: MessageListP
                 )}
               </div>
 
-              {!isUser && (
+              {!isUser && !isStreamingMessage && (
                 <div className="message-actions-apple">
                   <button
                     className="action-pill"
@@ -69,7 +89,7 @@ export function MessageList({ messages, isThinking, onRegenerate }: MessageListP
         );
       })}
 
-      {isThinking && (
+      {isThinking && !isReceivingAnswer && (
         <article className="message-row message-assistant">
           <div className="thinking-bubble-apple">
             <span className="dot" />

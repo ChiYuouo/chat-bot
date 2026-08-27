@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import secrets
@@ -13,12 +14,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
+from queue import Queue
 from typing import Any, Iterator, Literal
 
 import pandas as pd
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.config import Config
@@ -310,6 +312,94 @@ def chat(
             "chart_url": chart_url,
             "rag_debug": result.get("rag_debug"),
         }
+
+
+def _ndjson_event(event: dict[str, Any]) -> bytes:
+    return (json.dumps(event, ensure_ascii=False, default=str) + "\n").encode("utf-8")
+
+
+@app.post("/api/chat/stream")
+def chat_stream(
+    payload: ChatRequest,
+    request: Request,
+    session: ApiSession = Depends(get_session),
+    credentials: RequestCredentials = Depends(get_credentials),
+) -> StreamingResponse:
+    """以 NDJSON 事件流返回回答；普通问答的模型内容会逐块发送。"""
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="消息内容不能为空")
+
+    history = [item.model_dump() for item in payload.history]
+    conversation_id = payload.conversation_id or "default"
+
+    def stream_events() -> Iterator[bytes]:
+        event_queue: Queue[Any] = Queue()
+        finished = object()
+
+        def emit_delta(content: str) -> None:
+            event_queue.put({"type": "delta", "content": content})
+
+        def produce() -> None:
+            try:
+                with session.lock, request_credentials(credentials):
+                    if not history:
+                        session.conversation_intents.pop(conversation_id, None)
+                    session.messages = history
+                    previous_intents = session.conversation_intents.get(
+                        conversation_id, []
+                    )
+                    result = process_user_message(
+                        message,
+                        uploaded_files=session.uploaded_files,
+                        messages=session.messages,
+                        last_intents=previous_intents,
+                        stream_callback=emit_delta,
+                    )
+                    session.last_intents = list(result.get("intents") or [])
+                    session.conversation_intents[conversation_id] = session.last_intents
+                    session.messages.extend([
+                        {"role": "user", "content": message},
+                        {"role": "assistant", "content": result["content"]},
+                    ])
+
+                    chart_url = None
+                    if isinstance(result.get("chart"), bytes):
+                        chart_id = _store_chart(session, result["chart"])
+                        chart_url = str(
+                            request.url_for("get_chart", chart_id=chart_id)
+                        )
+
+                    event_queue.put({
+                        "type": "done",
+                        "content": result["content"],
+                        "chart_url": chart_url,
+                        "rag_debug": result.get("rag_debug"),
+                    })
+            except Exception as exc:
+                event_queue.put({
+                    "type": "error",
+                    "message": f"生成回答失败：{exc}",
+                })
+            finally:
+                event_queue.put(finished)
+
+        threading.Thread(target=produce, daemon=True).start()
+        yield _ndjson_event({"type": "status", "content": "正在思考..."})
+        while True:
+            event = event_queue.get()
+            if event is finished:
+                break
+            yield _ndjson_event(event)
+
+    return StreamingResponse(
+        stream_events(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/api/sources")
