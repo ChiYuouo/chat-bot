@@ -164,6 +164,18 @@ streamlit run chatbot.py
 
 打开 `http://localhost:8501`，在侧边栏输入 DashScope API Key 后即可使用。
 
+### React 前端预览
+
+项目同时提供了一个独立的 React 前端原型，代码位于 `fronted/`：
+
+```powershell
+cd fronted
+pnpm install
+pnpm dev
+```
+
+打开 `http://localhost:5173`。当前页面默认使用演示回答；接入 Python Web API 的请求格式与环境变量配置见 `fronted/README.md`。
+
 也可以提前设置环境变量：
 
 ```powershell

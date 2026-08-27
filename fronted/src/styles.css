@@ -1,0 +1,1263 @@
+/* ==========================================================================
+   Apple Human Interface Guidelines (HIG) - Minimalist Design System
+   ========================================================================== */
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+  color: #1d1d1f;
+  background: #f5f5f7;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Apple System Colors */
+  --apple-blue: #0071e3;
+  --apple-blue-hover: #0077ed;
+  --apple-text: #1d1d1f;
+  --apple-secondary: #86868b;
+  --apple-subtle: #a1a1a6;
+  --apple-border: rgba(0, 0, 0, 0.08);
+  --apple-border-subtle: rgba(0, 0, 0, 0.04);
+  --apple-bg: #f5f5f7;
+  --apple-surface: rgba(255, 255, 255, 0.72);
+  --apple-sidebar-bg: rgba(245, 245, 247, 0.78);
+
+  /* Shadows */
+  --shadow-apple-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-apple-md: 0 4px 16px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-apple-lg: 0 12px 32px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.02);
+
+  /* Easing */
+  --apple-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================================================
+   Reset & Base
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--apple-bg);
+  color: var(--apple-text);
+  user-select: none;
+}
+
+button, input, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--apple-blue);
+  outline-offset: 1px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Apple Window & Shell Layout (3-Column Grid)
+   ========================================================================== */
+
+.app-root {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-shell {
+  --left-panel-width: 240px;
+  --right-panel-width: 260px;
+  display: grid;
+  grid-template-columns: var(--left-panel-width) minmax(0, 1fr) var(--right-panel-width);
+  grid-template-rows: 100%;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--apple-bg);
+  transition: grid-template-columns 280ms var(--apple-ease);
+}
+
+.app-shell.is-left-collapsed {
+  --left-panel-width: 0px;
+}
+
+.app-shell.is-right-collapsed {
+  --right-panel-width: 0px;
+}
+
+/* ==========================================================================
+   Apple Buttons & Shared Micro-interactions
+   ========================================================================== */
+
+.icon-btn-apple {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--apple-secondary);
+  background: transparent;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.icon-btn-apple:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--apple-text);
+}
+
+.icon-btn-apple:active {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+/* ==========================================================================
+   macOS Sidebar (Left Column)
+   ========================================================================== */
+
+.sidebar {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  width: var(--left-panel-width);
+  height: 100%;
+  padding: 14px 12px;
+  border-right: 1px solid var(--apple-border);
+  background: var(--apple-sidebar-bg);
+  backdrop-filter: blur(30px) saturate(190%);
+  overflow: hidden;
+  transition: opacity 200ms ease, transform 280ms var(--apple-ease);
+}
+
+.app-shell.is-left-collapsed .sidebar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-100%);
+}
+
+.sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.sidebar-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sidebar-close-btn {
+  display: none;
+}
+
+/* Minimal Brand Mark */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: white;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #0071e3 0%, #0056b3 100%);
+}
+
+.brand-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--apple-text);
+}
+
+/* macOS Session List */
+.sidebar-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.sidebar-section::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--apple-subtle);
+  padding: 0 8px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.session-list {
+  display: grid;
+  gap: 2px;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #48484a;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.session-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--apple-text);
+}
+
+.session-row.is-active {
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--apple-text);
+  font-weight: 550;
+}
+
+.session-row-icon {
+  flex-shrink: 0;
+  color: var(--apple-subtle);
+}
+
+.session-row.is-active .session-row-icon {
+  color: var(--apple-blue);
+}
+
+.session-row-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  display: grid;
+  gap: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--apple-border-subtle);
+}
+
+.sidebar-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--apple-secondary);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.sidebar-footer-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--apple-text);
+}
+
+.sidebar-footer-row.text-danger:hover {
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.08);
+}
+
+/* ==========================================================================
+   Center Column: Main Panel & Topbar
+   ========================================================================== */
+
+.main-panel {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background: #ffffff;
+  overflow: hidden;
+  position: relative;
+}
+
+/* macOS Top Window Header */
+.topbar {
+  z-index: 20;
+  display: flex;
+  height: 48px;
+  flex: 0 0 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--apple-border);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(25px) saturate(180%);
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--apple-text);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--apple-secondary);
+  background: rgba(0, 0, 0, 0.03);
+  transition: all 140ms ease;
+}
+
+.topbar-pill-btn:hover,
+.topbar-pill-btn.is-active {
+  color: var(--apple-blue);
+  background: rgba(0, 113, 227, 0.08);
+}
+
+/* ==========================================================================
+   Chat Surface
+   ========================================================================== */
+
+.chat-surface {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.chat-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+/* Welcome State */
+.welcome-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 20px 20px 140px;
+}
+
+.welcome-state.is-hidden {
+  display: none;
+}
+
+/* Conversation State */
+.conversation-state {
+  display: block;
+  padding: 24px 20px 140px;
+  min-height: 100%;
+}
+
+.conversation-state.is-hidden {
+  display: none;
+}
+
+/* ==========================================================================
+   Apple Intelligence Welcome View (Minimalist & Breathable)
+   ========================================================================== */
+
+.welcome {
+  width: min(520px, 100%);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.welcome-hero {
+  margin-bottom: 24px;
+}
+
+.apple-ai-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  color: white;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0071e3 0%, #a855f7 50%, #ec4899 100%);
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.28);
+}
+
+.welcome h1 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--apple-text);
+  margin-bottom: 6px;
+}
+
+.welcome-subtitle {
+  font-size: 13.5px;
+  color: var(--apple-secondary);
+  line-height: 1.5;
+}
+
+.suggestion-pills {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.suggestion-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #f5f5f7;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  font-size: 13px;
+  color: var(--apple-text);
+  transition: all 140ms ease;
+}
+
+.suggestion-pill:hover {
+  background: #ebebee;
+  border-color: rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.pill-arrow {
+  color: var(--apple-subtle);
+  transition: transform 120ms ease, color 120ms ease;
+}
+
+.suggestion-pill:hover .pill-arrow {
+  color: var(--apple-blue);
+  transform: translate(2px, -2px);
+}
+
+/* ==========================================================================
+   Apple Messages Style Message List
+   ========================================================================== */
+
+.message-list {
+  display: grid;
+  width: min(680px, 100%);
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.message-row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.message-user {
+  justify-content: flex-end;
+}
+
+.message-assistant {
+  justify-content: flex-start;
+}
+
+.message-bubble-wrap {
+  max-width: 82%;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-user .message-bubble-wrap {
+  align-items: flex-end;
+}
+
+.message-bubble {
+  font-size: 14.5px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.message-user .message-bubble {
+  padding: 10px 16px;
+  border-radius: 18px 18px 4px 18px;
+  background: var(--apple-blue);
+  color: #ffffff;
+}
+
+.message-assistant .message-bubble {
+  padding: 12px 16px;
+  border-radius: 4px 18px 18px 18px;
+  background: #f5f5f7;
+  color: var(--apple-text);
+}
+
+.message-bubble p + p {
+  margin-top: 8px;
+}
+
+.message-actions-apple {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding-left: 2px;
+}
+
+.action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--apple-subtle);
+  transition: all 120ms ease;
+}
+
+.action-pill:hover {
+  color: var(--apple-text);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Thinking Indicator */
+.thinking-bubble-apple {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: #f5f5f7;
+}
+
+.thinking-bubble-apple .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--apple-subtle);
+  animation: apple-dot-pulse 1.4s infinite ease-in-out;
+}
+
+.thinking-bubble-apple .dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-bubble-apple .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes apple-dot-pulse {
+  0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
+  40% { transform: scale(1.15); opacity: 1; }
+}
+
+/* ==========================================================================
+   Apple Capsule Composer (Spotlight / Messages Style)
+   ========================================================================== */
+
+.composer-wrap {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 15;
+  width: min(680px, calc(100% - 32px));
+  margin: 0 auto;
+  padding-bottom: 14px;
+  pointer-events: none;
+}
+
+.url-entry-bar,
+.composer,
+.composer-footnote {
+  pointer-events: auto;
+}
+
+/* URL bar */
+.url-entry-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid var(--apple-border);
+  box-shadow: var(--shadow-apple-md);
+}
+
+.url-icon {
+  color: var(--apple-blue);
+}
+
+.url-entry-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  background: transparent;
+}
+
+.url-submit-btn {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--apple-blue);
+  color: white;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.url-cancel-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--apple-subtle);
+}
+
+/* Capsule Box */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.02);
+  backdrop-filter: blur(30px) saturate(190%);
+  transition: all 180ms ease;
+}
+
+.composer:focus-within {
+  background: #ffffff;
+  border-color: rgba(0, 113, 227, 0.45);
+  box-shadow: 0 10px 30px rgba(0, 113, 227, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.composer-leading {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.attach-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--apple-secondary);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.attach-button:hover,
+.attach-button.is-active {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--apple-text);
+}
+
+/* Apple Context Menu */
+.apple-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: grid;
+  width: 170px;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--apple-border);
+  box-shadow: var(--shadow-apple-lg);
+  backdrop-filter: blur(25px);
+  z-index: 50;
+}
+
+.apple-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--apple-text);
+  transition: background 100ms ease;
+}
+
+.apple-menu button:hover {
+  background: var(--apple-blue);
+  color: #ffffff;
+}
+
+.apple-menu button:hover svg {
+  color: #ffffff !important;
+}
+
+.menu-icon-pdf { color: #ff3b30; }
+.menu-icon-text { color: #0071e3; }
+.menu-icon-csv { color: #34c759; }
+.menu-icon-img { color: #af52de; }
+.menu-icon-web { color: #5856d6; }
+
+.apple-menu-divider {
+  height: 1px;
+  background: var(--apple-border);
+  margin: 3px 0;
+}
+
+.composer textarea {
+  flex: 1;
+  min-height: 24px;
+  max-height: 120px;
+  padding: 4px 2px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--apple-text);
+  resize: none;
+}
+
+.composer textarea::placeholder {
+  color: var(--apple-subtle);
+}
+
+/* Send Circle Button */
+.send-circle-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e5e5ea;
+  color: #8e8e93;
+  flex-shrink: 0;
+  margin-bottom: 1px;
+  transition: all 160ms var(--apple-ease);
+}
+
+.send-circle-btn.is-active {
+  background: var(--apple-blue);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 113, 227, 0.35);
+  cursor: pointer;
+}
+
+.send-circle-btn.is-active:hover {
+  background: var(--apple-blue-hover);
+  transform: scale(1.05);
+}
+
+.send-circle-btn.is-active:active {
+  transform: scale(0.95);
+}
+
+.send-circle-btn:disabled {
+  cursor: not-allowed;
+}
+
+.composer-footnote {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--apple-subtle);
+  margin-top: 6px;
+}
+
+/* ==========================================================================
+   macOS Inspector (Right Column: Knowledge Sources)
+   ========================================================================== */
+
+.desktop-source-panel {
+  grid-column: 3;
+  width: var(--right-panel-width);
+  height: 100%;
+  overflow: hidden;
+  border-left: 1px solid var(--apple-border);
+  background: var(--apple-sidebar-bg);
+  backdrop-filter: blur(30px) saturate(190%);
+  transition: opacity 200ms ease, transform 280ms var(--apple-ease);
+}
+
+.app-shell.is-right-collapsed .desktop-source-panel {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(100%);
+}
+
+.source-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 14px 12px;
+  min-width: 260px;
+}
+
+.source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.source-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-header h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--apple-text);
+}
+
+.source-count-pill {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--apple-secondary);
+}
+
+.source-list {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.source-list::-webkit-scrollbar {
+  display: none;
+}
+
+.source-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--apple-border-subtle);
+  transition: background 120ms ease;
+}
+
+.source-item:hover {
+  background: #ffffff;
+}
+
+.source-icon-wrap {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--apple-secondary);
+  flex-shrink: 0;
+}
+
+.source-item-info {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.source-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--apple-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-meta {
+  font-size: 10.5px;
+  color: var(--apple-subtle);
+}
+
+.source-delete-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--apple-subtle);
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.source-item:hover .source-delete-btn {
+  opacity: 1;
+}
+
+.source-delete-btn:hover {
+  color: #ff3b30;
+}
+
+.source-empty {
+  padding: 24px 8px;
+  text-align: center;
+}
+
+.source-empty p {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--apple-secondary);
+}
+
+.source-empty span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--apple-subtle);
+}
+
+/* ==========================================================================
+   Apple Settings Modal
+   ========================================================================== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+.settings-modal {
+  width: min(440px, calc(100% - 32px));
+  padding: 20px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: var(--shadow-apple-lg);
+  border: 1px solid var(--apple-border);
+}
+
+.modal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modal-heading h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--apple-text);
+}
+
+.modal-body {
+  display: grid;
+  gap: 12px;
+}
+
+.setting-section {
+  display: grid;
+  gap: 4px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apple-secondary);
+}
+
+.model-choice-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.model-card {
+  display: grid;
+  gap: 1px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #f5f5f7;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 120ms ease;
+}
+
+.model-card:hover {
+  background: #ececee;
+}
+
+.model-card.is-selected {
+  background: rgba(0, 113, 227, 0.08);
+  border-color: var(--apple-blue);
+}
+
+.model-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.model-card-top strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--apple-text);
+}
+
+.model-active-badge {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--apple-blue);
+  color: white;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.model-card p {
+  font-size: 11px;
+  color: var(--apple-secondary);
+}
+
+.password-field {
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+  border: 1px solid var(--apple-border);
+  background: #f5f5f7;
+  padding-right: 6px;
+}
+
+.password-field:focus-within {
+  background: #ffffff;
+  border-color: var(--apple-blue);
+}
+
+.password-field input,
+.text-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.text-input {
+  border-radius: 7px;
+  border: 1px solid var(--apple-border);
+  background: #f5f5f7;
+}
+
+.text-input:focus {
+  background: #ffffff;
+  border-color: var(--apple-blue);
+}
+
+.eye-toggle-btn {
+  color: var(--apple-subtle);
+  padding: 2px;
+}
+
+.field-help {
+  font-size: 10.5px;
+  color: var(--apple-subtle);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--apple-border-subtle);
+}
+
+.button-secondary {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--apple-text);
+  background: #f5f5f7;
+}
+
+.button-secondary:hover {
+  background: #ebebee;
+}
+
+.button-primary {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: white;
+  background: var(--apple-blue);
+}
+
+.button-primary:hover {
+  background: var(--apple-blue-hover);
+}
+
+.button-primary.is-saved {
+  background: #34c759;
+}
+
+/* ==========================================================================
+   Mobile Responsive
+   ========================================================================== */
+
+.sidebar-scrim,
+.source-drawer {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: 1fr !important;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    width: 260px;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-apple-lg);
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-scrim {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+  }
+
+  .sidebar-scrim.is-visible {
+    display: block !important;
+  }
+
+  .sidebar-close-btn {
+    display: grid;
+  }
+
+  .desktop-source-panel {
+    display: none !important;
+  }
+
+  .source-drawer {
+    display: block;
+  }
+
+  .source-drawer-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+
+  .source-drawer.is-open .source-drawer-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .source-drawer-content {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    width: 280px;
+    background: #ffffff;
+    box-shadow: var(--shadow-apple-lg);
+    transform: translateX(100%);
+    transition: transform 260ms var(--apple-ease);
+  }
+
+  .source-drawer.is-open .source-drawer-content {
+    transform: translateX(0);
+  }
+}
