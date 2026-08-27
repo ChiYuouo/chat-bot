@@ -8,10 +8,16 @@ import type { Message } from "../types";
 interface MessageListProps {
   messages: Message[];
   isThinking: boolean;
+  thinkingStatus: string;
   onRegenerate?: () => void;
 }
 
-export function MessageList({ messages, isThinking, onRegenerate }: MessageListProps) {
+export function MessageList({
+  messages,
+  isThinking,
+  thinkingStatus,
+  onRegenerate,
+}: MessageListProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const lastMessage = messages[messages.length - 1];
   const isReceivingAnswer = isThinking && lastMessage?.role === "assistant";
@@ -92,9 +98,12 @@ export function MessageList({ messages, isThinking, onRegenerate }: MessageListP
       {isThinking && !isReceivingAnswer && (
         <article className="message-row message-assistant">
           <div className="thinking-bubble-apple">
-            <span className="dot" />
-            <span className="dot" />
-            <span className="dot" />
+            <span className="thinking-status">{thinkingStatus}</span>
+            <span className="thinking-dots" aria-hidden="true">
+              <span className="dot" />
+              <span className="dot" />
+              <span className="dot" />
+            </span>
           </div>
         </article>
       )}

@@ -69,6 +69,7 @@ def process_user_message(
     last_intents: list[str] | None = None,
     spinner_factory: Any | None = None,
     stream_callback: Callable[[str], None] | None = None,
+    status_callback: Callable[[str], None] | None = None,
 ) -> Dict[str, Any]:
     """处理一次对话，可由 Streamlit 或 HTTP 适配层复用。"""
     uses_streamlit_state = uploaded_files is None
@@ -137,6 +138,8 @@ def process_user_message(
         and bool(files.get("knowledge_chunks"))
     ):
         try:
+            if status_callback:
+                status_callback("正在准备知识库检索索引...")
             with spinner("正在检查知识库中是否有相关资料..."):
                 store, keyword_index = ensure_indexes(files)
                 rag_history = (
@@ -144,11 +147,15 @@ def process_user_message(
                     if "rag_qa" in previous_intents
                     else []
                 )
+                rag_kwargs: dict[str, Any] = {}
+                if stream_callback:
+                    rag_kwargs.update({
+                        "stream_callback": stream_callback,
+                        "status_callback": status_callback,
+                        "verified_stream_only": True,
+                    })
                 candidate_result = rag_answer(
-                    user_input,
-                    store,
-                    keyword_index,
-                    rag_history,
+                    user_input, store, keyword_index, rag_history, **rag_kwargs
                 )
             rag_debug = candidate_result.get("debug")
             rerank_applied = bool(
@@ -183,6 +190,8 @@ def process_user_message(
                 else:
                     result = prefetched_rag_result
                     if result is None:
+                        if status_callback:
+                            status_callback("正在准备知识库检索索引...")
                         with spinner("正在准备知识库检索索引..."):
                             store, keyword_index = ensure_indexes(files)
                         rag_history = (
@@ -191,11 +200,14 @@ def process_user_message(
                             else []
                         )
                         with spinner("正在改写问题、混合检索并精排..."):
+                            rag_kwargs = {}
+                            if stream_callback:
+                                rag_kwargs.update({
+                                    "stream_callback": stream_callback,
+                                    "status_callback": status_callback,
+                                })
                             result = rag_answer(
-                                user_input,
-                                store,
-                                keyword_index,
-                                rag_history,
+                                user_input, store, keyword_index, rag_history, **rag_kwargs
                             )
                     rag_debug = result.get("debug")
                     response_parts.append(f"📚 **RAG 回答**:\n{result['answer']}\n")
@@ -208,7 +220,14 @@ def process_user_message(
                     response_parts.append("⚠️ **数据分析**需要先上传 CSV 文件（在左侧边栏上传）\n")
                 else:
                     with spinner("正在生成并安全执行代码..."):
-                        result = agent_answer(files["csv_df"], user_input)
+                        agent_kwargs = (
+                            {"status_callback": status_callback}
+                            if status_callback
+                            else {}
+                        )
+                        result = agent_answer(
+                            files["csv_df"], user_input, **agent_kwargs
+                        )
                     response_parts.append(f"📊 **数据分析结果**:\n```\n{result['answer']}\n```\n")
                     response_parts.append(f"\n📝 **生成的代码**:\n```python\n{result['code']}\n```\n")
                     if result["chart"]:
@@ -229,6 +248,8 @@ def process_user_message(
                         )
 
             else:
+                if status_callback:
+                    status_callback("正在生成回答...")
                 with spinner("正在思考..."):
                     answer = general_answer(user_input, message_history, stream_callback)
                 response_parts.append(f"💬 **回答**:\n{answer}\n")

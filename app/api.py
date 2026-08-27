@@ -340,6 +340,9 @@ def chat_stream(
         def emit_delta(content: str) -> None:
             event_queue.put({"type": "delta", "content": content})
 
+        def emit_status(content: str) -> None:
+            event_queue.put({"type": "status", "content": content})
+
         def produce() -> None:
             try:
                 with session.lock, request_credentials(credentials):
@@ -355,6 +358,7 @@ def chat_stream(
                         messages=session.messages,
                         last_intents=previous_intents,
                         stream_callback=emit_delta,
+                        status_callback=emit_status,
                     )
                     session.last_intents = list(result.get("intents") or [])
                     session.conversation_intents[conversation_id] = session.last_intents
@@ -385,7 +389,7 @@ def chat_stream(
                 event_queue.put(finished)
 
         threading.Thread(target=produce, daemon=True).start()
-        yield _ndjson_event({"type": "status", "content": "正在思考..."})
+        yield _ndjson_event({"type": "status", "content": "正在识别问题类型..."})
         while True:
             event = event_queue.get()
             if event is finished:

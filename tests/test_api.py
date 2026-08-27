@@ -154,6 +154,7 @@ class ApiTests(unittest.TestCase):
     @patch("app.api.process_user_message")
     def test_chat_stream_returns_delta_and_done_events(self, process_user_message):
         def answer(_message, **kwargs):
+            kwargs["status_callback"]("正在生成回答...")
             kwargs["stream_callback"]("你")
             kwargs["stream_callback"]("好")
             return {
@@ -175,10 +176,12 @@ class ApiTests(unittest.TestCase):
         events = [json.loads(line) for line in response.text.splitlines()]
         self.assertEqual([event["type"] for event in events], [
             "status",
+            "status",
             "delta",
             "delta",
             "done",
         ])
+        self.assertEqual(events[1]["content"], "正在生成回答...")
         self.assertEqual(
             [event["content"] for event in events if event["type"] == "delta"],
             ["你", "好"],

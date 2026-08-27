@@ -58,13 +58,22 @@ class ChartPathNormalizationTests(unittest.TestCase):
             "chart": b"png",
         }
 
-        result = agent_answer(pd.DataFrame({"price": [1, 2]}), "绘制价格分布")
+        statuses = []
+        result = agent_answer(
+            pd.DataFrame({"price": [1, 2]}),
+            "绘制价格分布",
+            statuses.append,
+        )
 
         executed_code = execute_dataframe_code.call_args.args[0]
         self.assertNotIn("import", executed_code)
         self.assertIn("plt.savefig(chart_path)", executed_code)
         self.assertEqual(result["code"], executed_code)
         self.assertEqual(result["chart"], b"png")
+        self.assertEqual(statuses, [
+            "正在生成数据分析代码...",
+            "正在校验并执行分析代码...",
+        ])
 
 
 if __name__ == "__main__":

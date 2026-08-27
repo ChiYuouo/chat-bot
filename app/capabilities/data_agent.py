@@ -2,6 +2,7 @@
 
 import ast
 import re
+from collections.abc import Callable
 from typing import Any, Dict
 
 import pandas as pd
@@ -92,7 +93,11 @@ def _normalize_generated_code(code: str) -> str:
     return ast.unparse(tree)
 
 
-def agent_answer(df: pd.DataFrame, question: str) -> Dict[str, Any]:
+def agent_answer(
+    df: pd.DataFrame,
+    question: str,
+    status_callback: Callable[[str], None] | None = None,
+) -> Dict[str, Any]:
     df_meta = {
         "shape": df.shape,
         "columns": list(df.columns),
@@ -119,12 +124,16 @@ DataFrame 元信息：
 5. 如果需要画图，直接使用 plt，并且必须调用 plt.savefig(chart_path) 保存图片；chart_path 是系统提供的变量，禁止写成字符串文件名。
 6. 不要使用 open、eval、exec，也不要读取或写入任何外部文件。
 """
+    if status_callback:
+        status_callback("正在生成数据分析代码...")
     response = create_chat_model(Config.LLM_MODEL, temperature=0).invoke(prompt)
     code = response.content.strip()
     code = re.sub(r"^```(?:python)?\s*", "", code, flags=re.IGNORECASE)
     code = re.sub(r"\s*```$", "", code)
     code = _normalize_generated_code(code)
 
+    if status_callback:
+        status_callback("正在校验并执行分析代码...")
     execution = execute_dataframe_code(code, df)
     if execution["success"]:
         output = execution["output"] or "代码执行成功，但没有打印结果。"

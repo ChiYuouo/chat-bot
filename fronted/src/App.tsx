@@ -64,6 +64,7 @@ export default function App() {
   );
   const [draft, setDraft] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [thinkingStatus, setThinkingStatus] = useState("正在思考...");
   const scrollAnchor = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -154,6 +155,7 @@ export default function App() {
           );
         });
       },
+      setThinkingStatus,
     );
 
     const finalMessage = makeMessage("assistant", result.content, result);
@@ -188,6 +190,7 @@ export default function App() {
     const pendingMessage = makeMessage("assistant", "");
     setMessages((items) => [...items, userMessage]);
     setDraft("");
+    setThinkingStatus("正在识别问题类型...");
     setIsThinking(true);
 
     try {
@@ -216,6 +219,7 @@ export default function App() {
     const lastPrompt = messages[lastUserIndex].content;
     const conversationId = activeConversationId;
     setMessages((prev) => prev.slice(0, lastUserIndex + 1));
+    setThinkingStatus("正在识别问题类型...");
     setIsThinking(true);
     const previousMessages = messages.slice(0, lastUserIndex);
     const pendingMessage = makeMessage("assistant", "");
@@ -406,6 +410,7 @@ export default function App() {
                 <MessageList
                   messages={messages}
                   isThinking={isThinking}
+                  thinkingStatus={thinkingStatus}
                   onRegenerate={regenerateLastMessage}
                 />
                 <div ref={scrollAnchor} />

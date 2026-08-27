@@ -164,6 +164,7 @@ export async function streamChatMessage(
   history: Message[],
   conversationId: string,
   onDelta: (content: string) => void,
+  onStatus?: (content: string) => void,
 ): Promise<ChatResult> {
   const controller = new AbortController();
   let timeoutId = 0;
@@ -212,6 +213,8 @@ export async function streamChatMessage(
 
       if (event.type === "delta" && event.content) {
         onDelta(event.content);
+      } else if (event.type === "status" && event.content) {
+        onStatus?.(event.content);
       } else if (event.type === "done") {
         if (!event.content) throw new ApiError("接口没有返回回答内容");
         result = {
