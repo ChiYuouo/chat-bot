@@ -3,7 +3,16 @@
 from langchain_community.chat_models import ChatTongyi
 
 
-def create_chat_model(model: str, temperature: float = 0):
+def create_chat_model(
+    model: str,
+    temperature: float = 0,
+    *,
+    streaming: bool = False,
+):
     """按原有参数创建一个 ChatTongyi 实例。"""
-    return ChatTongyi(model=model, temperature=temperature)
+    return ChatTongyi(
+        model=model,
+        temperature=temperature,
+        streaming=streaming,
+    )
 

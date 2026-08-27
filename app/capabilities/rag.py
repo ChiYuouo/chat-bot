@@ -37,7 +37,11 @@ def _generate_answer(
     *,
     suppress_rejection_stream: bool = False,
 ) -> str:
-    model = create_chat_model(Config.LLM_MODEL, temperature=0)
+    model = create_chat_model(
+        Config.LLM_MODEL,
+        temperature=0,
+        streaming=stream_callback is not None,
+    )
     if stream_callback is None:
         return _content_to_text(model.invoke(prompt).content)
 

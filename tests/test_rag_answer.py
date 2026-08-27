@@ -151,6 +151,7 @@ class RagAnswerTests(unittest.TestCase):
             "正在根据资料生成回答...",
         ])
         model.invoke.assert_not_called()
+        self.assertTrue(create_chat_model.call_args.kwargs["streaming"])
 
 
 if __name__ == "__main__":

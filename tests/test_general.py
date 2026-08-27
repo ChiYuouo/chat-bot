@@ -45,6 +45,7 @@ class GeneralAnswerTests(unittest.TestCase):
         self.assertEqual(answer, "你好")
         self.assertEqual(received, ["你", "好"])
         llm.invoke.assert_not_called()
+        self.assertTrue(create_chat_model.call_args.kwargs["streaming"])
         self.assertEqual(
             llm.stream.call_args.args[0],
             [HumanMessage(content="打个招呼")],

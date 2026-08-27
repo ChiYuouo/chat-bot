@@ -26,7 +26,11 @@ def general_answer(
     chat_history: List[Dict],
     stream_callback: Callable[[str], None] | None = None,
 ) -> str:
-    llm = create_chat_model(Config.LLM_MODEL, temperature=0.7)
+    llm = create_chat_model(
+        Config.LLM_MODEL,
+        temperature=0.7,
+        streaming=stream_callback is not None,
+    )
     messages = []
     for message in chat_history[-10:]:
         if message["role"] == "user":
