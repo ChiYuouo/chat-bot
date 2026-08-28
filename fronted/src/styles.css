@@ -207,7 +207,77 @@ textarea:focus-visible {
   color: var(--apple-text);
 }
 
-/* macOS Session List */
+/* Sidebar New Chat Button */
+.sidebar-new-chat-wrap {
+  margin-bottom: 12px;
+}
+
+.sidebar-new-chat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--apple-blue);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 550;
+  box-shadow: 0 2px 6px rgba(0, 113, 227, 0.25);
+  transition: all 140ms ease;
+  cursor: pointer;
+}
+
+.sidebar-new-chat-btn:hover {
+  background: var(--apple-blue-hover);
+  transform: translateY(-0.5px);
+}
+
+.sidebar-new-chat-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Ant Design X Conversations Integration */
+.conversations-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+
+.conversations-wrapper .ant-conversations {
+  padding: 0;
+  background: transparent;
+}
+
+.conversations-wrapper .ant-conversations-group-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--apple-subtle);
+  padding: 8px 6px 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.conversations-wrapper .ant-conversations-item {
+  border-radius: 6px;
+  font-size: 13px;
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  transition: background 120ms ease;
+}
+
+.conversations-wrapper .ant-conversations-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.conversations-wrapper .ant-conversations-item-active {
+  background: rgba(0, 113, 227, 0.08) !important;
+  color: var(--apple-blue) !important;
+  font-weight: 550;
+}
+
+/* macOS Session List (Legacy fallback) */
 .sidebar-section {
   flex: 1;
   min-height: 0;
@@ -931,10 +1001,57 @@ textarea:focus-visible {
 }
 
 .composer-footnote {
-  text-align: center;
-  font-size: 10.5px;
+  margin-top: 8px;
+  font-size: 11px;
   color: var(--apple-subtle);
-  margin-top: 6px;
+  text-align: center;
+}
+
+/* Ant Design X Sender Integration */
+.ant-sender-container {
+  pointer-events: auto;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.02);
+  backdrop-filter: blur(30px) saturate(190%);
+  overflow: hidden;
+  transition: all 180ms ease;
+}
+
+.ant-sender-container:focus-within {
+  background: #ffffff;
+  border-color: rgba(0, 113, 227, 0.45);
+  box-shadow: 0 10px 30px rgba(0, 113, 227, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.ant-sender-container .ant-sender {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px 6px 4px 10px;
+}
+
+.ant-sender-attach-btn {
+  margin-bottom: 2px;
+}
+
+.sender-url-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.sender-url-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 12.5px;
 }
 
 /* ==========================================================================
@@ -1389,3 +1506,283 @@ textarea:focus-visible {
     transform: translateX(0);
   }
 }
+
+/* ==========================================================================
+   Ant Design X Message List & Bubble Styles
+   ========================================================================== */
+
+.ant-bubble-list-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(720px, 100%);
+  margin: 0 auto;
+}
+
+.ant-bubble-list-wrapper .ant-bubble-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.user-avatar-badge {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--apple-blue);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 113, 227, 0.25);
+}
+
+.assistant-avatar-badge {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0071e3 0%, #a855f7 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.25);
+  flex-shrink: 0;
+}
+
+.bubble-message-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.plain-message-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.thought-chain-wrapper {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.thought-chain-debug-box {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 11.5px;
+}
+
+.thought-chain-debug-box pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.bubble-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.bubble-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  color: var(--apple-secondary);
+  background: rgba(0, 0, 0, 0.03);
+  transition: all 140ms ease;
+  cursor: pointer;
+}
+
+.bubble-action-btn:hover {
+  color: var(--apple-text);
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.thinking-bubble-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+  width: min(720px, 100%);
+  margin-inline: auto;
+}
+
+.thinking-thought-chain {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Source Panel Ant Design Enhancements */
+.source-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.source-kind-tag {
+  font-size: 10px;
+  line-height: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin: 0;
+  border-radius: 4px;
+}
+
+.source-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.source-empty-wrap {
+  padding: 30px 10px;
+  display: grid;
+  place-items: center;
+}
+
+.source-empty-text p {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--apple-secondary);
+  margin-bottom: 2px;
+}
+
+.source-empty-text span {
+  font-size: 11px;
+  color: var(--apple-subtle);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+  color: var(--apple-blue);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Settings Modal Ant Design Enhancements */
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--apple-text);
+}
+
+.settings-title-icon {
+  color: var(--apple-blue);
+}
+
+.settings-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.setting-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--apple-text);
+}
+
+.setting-helper-text {
+  font-size: 11.5px;
+  color: var(--apple-secondary);
+  line-height: 1.4;
+}
+
+.model-grid-cards {
+  display: grid;
+  gap: 6px;
+}
+
+.model-option-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.model-option-card:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.model-option-card.is-active {
+  background: rgba(0, 113, 227, 0.06);
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 1px var(--apple-blue);
+}
+
+.model-option-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.model-option-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--apple-text);
+}
+
+.model-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--apple-secondary);
+}
+
+.model-option-card.is-active .model-tag {
+  background: var(--apple-blue);
+  color: #ffffff;
+}
+
+.model-option-desc {
+  font-size: 11.5px;
+  color: var(--apple-secondary);
+  line-height: 1.35;
+  margin: 0;
+}
+
+

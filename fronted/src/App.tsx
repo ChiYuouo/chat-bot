@@ -66,6 +66,7 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingStatus, setThinkingStatus] = useState("正在思考...");
   const scrollAnchor = useRef<HTMLDivElement>(null);
+  const streamAbortController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     scrollAnchor.current?.scrollIntoView({ behavior: isThinking ? "auto" : "smooth" });
@@ -132,11 +133,36 @@ export default function App() {
     setSidebarOpen(false);
   };
 
+  const deleteConversation = (conversationId: string) => {
+    if (isThinking) return;
+    setConversations((items) => {
+      const remaining = items.filter((c) => c.id !== conversationId);
+      if (remaining.length === 0) {
+        const fresh = createConversation();
+        setActiveConversationId(fresh.id);
+        setMessages(fresh.messages);
+        return [fresh];
+      }
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(remaining[0].id);
+        setMessages(remaining[0].messages);
+      }
+      return remaining;
+    });
+  };
+
+  const renameConversation = (conversationId: string, newTitle: string) => {
+    setConversations((items) =>
+      items.map((c) => (c.id === conversationId ? { ...c, title: newTitle } : c)),
+    );
+  };
+
   const streamAnswer = async (
     prompt: string,
     history: Message[],
     conversationId: string,
     pendingMessage: Message,
+    signal?: AbortSignal,
   ) => {
     const result = await streamChatMessage(
       prompt,
@@ -156,6 +182,7 @@ export default function App() {
         });
       },
       setThinkingStatus,
+      signal,
     );
 
     const finalMessage = makeMessage("assistant", result.content, result);
@@ -180,6 +207,12 @@ export default function App() {
     });
   };
 
+  const cancelStreaming = () => {
+    if (streamAbortController.current) {
+      streamAbortController.current.abort();
+    }
+  };
+
   const send = async (suggestedPrompt?: string) => {
     const content = (suggestedPrompt ?? draft).trim();
     if (!content || isThinking) return;
@@ -193,9 +226,16 @@ export default function App() {
     setThinkingStatus("正在识别问题类型...");
     setIsThinking(true);
 
+    const controller = new AbortController();
+    streamAbortController.current = controller;
+
     try {
-      await streamAnswer(content, previousMessages, conversationId, pendingMessage);
+      await streamAnswer(content, previousMessages, conversationId, pendingMessage, controller.signal);
     } catch (error) {
+      if (controller.signal.aborted) {
+        showStreamError(pendingMessage, "已停止生成。");
+        return;
+      }
       const reason = error instanceof Error ? error.message : "未知错误";
       showStreamError(
         pendingMessage,
@@ -203,6 +243,7 @@ export default function App() {
       );
     } finally {
       setIsThinking(false);
+      streamAbortController.current = null;
     }
   };
 
@@ -224,13 +265,21 @@ export default function App() {
     const previousMessages = messages.slice(0, lastUserIndex);
     const pendingMessage = makeMessage("assistant", "");
 
-    streamAnswer(lastPrompt, previousMessages, conversationId, pendingMessage)
+    const controller = new AbortController();
+    streamAbortController.current = controller;
+
+    streamAnswer(lastPrompt, previousMessages, conversationId, pendingMessage, controller.signal)
       .catch((error) => {
+        if (controller.signal.aborted) {
+          showStreamError(pendingMessage, "已停止生成。");
+          return;
+        }
         const reason = error instanceof Error ? error.message : "未知错误";
         showStreamError(pendingMessage, `重新生成失败：${reason}`);
       })
       .finally(() => {
         setIsThinking(false);
+        streamAbortController.current = null;
       });
   };
 
@@ -357,6 +406,8 @@ export default function App() {
           onClose={() => setSidebarOpen(false)}
           onNewChat={newChat}
           onSelectConversation={selectConversation}
+          onDeleteConversation={deleteConversation}
+          onRenameConversation={renameConversation}
           onClearSources={() => void handleClearSources()}
           onOpenSettings={() => setSettingsOpen(true)}
         />
@@ -420,8 +471,10 @@ export default function App() {
             <Composer
               value={draft}
               disabled={isThinking}
+              isThinking={isThinking}
               onChange={setDraft}
               onSend={() => void send()}
+              onCancel={cancelStreaming}
               onUploadFile={(file, kind) => void handleUploadFile(file, kind)}
               onAddUrl={(url) => void handleAddUrl(url)}
             />

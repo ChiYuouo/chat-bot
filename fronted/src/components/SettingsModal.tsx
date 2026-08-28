@@ -1,5 +1,12 @@
-import { Check, Cpu, Eye, EyeOff, KeyRound, Server, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Button, Input, Modal, message } from "antd";
+import {
+  Check,
+  Cpu,
+  KeyRound,
+  Server,
+  Sparkles,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -8,17 +15,31 @@ interface SettingsModalProps {
 }
 
 const models = [
-  { id: "", name: "跟随后端配置", desc: "不覆盖后端模型，使用环境变量或服务端默认值" },
-  { id: "qwen-plus", name: "Qwen-Plus", desc: "通用均衡 · 推荐用于企业常规知识检索与对话" },
-  { id: "qwen-max", name: "Qwen-Max", desc: "旗舰推理 · 复杂逻辑梳理、代码生成与长文本洞察" },
+  {
+    id: "",
+    name: "跟随后端配置",
+    tag: "默认",
+    desc: "不覆盖后端模型，使用环境变量或服务端默认设置",
+  },
+  {
+    id: "qwen-plus",
+    name: "Qwen-Plus",
+    tag: "均衡",
+    desc: "通用高效 · 推荐用于常规企业知识问答与文档总结",
+  },
+  {
+    id: "qwen-max",
+    name: "Qwen-Max",
+    tag: "旗舰",
+    desc: "旗舰推理 · 适用于复杂逻辑梳理、代码生成与多轮深度分析",
+  },
 ];
 
 export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) {
   const [key, setKey] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
   const [apiBaseUrl, setApiBaseUrl] = useState("");
-  const [visible, setVisible] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -32,125 +53,129 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
-  const save = () => {
+  const handleSave = () => {
+    setSaving(true);
     const normalizedKey = key.trim();
     const normalizedUrl = apiBaseUrl.trim();
-    if (normalizedKey) localStorage.setItem("dashscope-api-key", normalizedKey);
-    else localStorage.removeItem("dashscope-api-key");
-    if (selectedModel) localStorage.setItem("selected-model", selectedModel);
-    else localStorage.removeItem("selected-model");
-    if (normalizedUrl) localStorage.setItem("custom-api-base-url", normalizedUrl);
-    else localStorage.removeItem("custom-api-base-url");
+
+    if (normalizedKey) {
+      localStorage.setItem("dashscope-api-key", normalizedKey);
+    } else {
+      localStorage.removeItem("dashscope-api-key");
+    }
+
+    if (selectedModel) {
+      localStorage.setItem("selected-model", selectedModel);
+    } else {
+      localStorage.removeItem("selected-model");
+    }
+
+    if (normalizedUrl) {
+      localStorage.setItem("custom-api-base-url", normalizedUrl);
+    } else {
+      localStorage.removeItem("custom-api-base-url");
+    }
+
     onSaved?.();
-    setSaved(true);
+    message.success("系统设置已保存生效");
+
     window.setTimeout(() => {
-      setSaved(false);
+      setSaving(false);
       onClose();
-    }, 600);
+    }, 300);
   };
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="settings-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="modal-heading">
-          <div className="heading-left">
-            <span className="eyebrow">系统偏好</span>
-            <h2 id="settings-title">模型与环境配置</h2>
-          </div>
-          <button className="icon-button modal-close-btn" onClick={onClose} aria-label="关闭设置">
-            <X size={18} />
-          </button>
+    <Modal
+      open={isOpen}
+      onCancel={onClose}
+      footer={[
+        <Button key="cancel" onClick={onClose}>
+          取消
+        </Button>,
+        <Button
+          key="submit"
+          type="primary"
+          loading={saving}
+          onClick={handleSave}
+          icon={<Check size={14} />}
+        >
+          保存生效
+        </Button>,
+      ]}
+      title={
+        <div className="settings-modal-header">
+          <Sparkles size={18} className="settings-title-icon" />
+          <span>系统偏好与模型设置</span>
         </div>
-
-        <div className="modal-body">
-          {/* Model Selection */}
-          <div className="setting-section">
-            <label className="field-label">
-              <Cpu size={14} /> 默认推理模型
-            </label>
-            <div className="model-choice-grid">
-              {models.map((m) => (
-                <button
+      }
+      destroyOnClose
+      width={560}
+      className="ant-settings-modal"
+    >
+      <div className="settings-modal-body">
+        {/* Model Selection */}
+        <div className="setting-block">
+          <label className="setting-label">
+            <Cpu size={14} /> 默认推理模型
+          </label>
+          <div className="model-grid-cards">
+            {models.map((m) => {
+              const isSelected = selectedModel === m.id;
+              return (
+                <div
                   key={m.id}
-                  type="button"
-                  className={`model-card ${selectedModel === m.id ? "is-selected" : ""}`}
+                  className={`model-option-card ${isSelected ? "is-active" : ""}`}
                   onClick={() => setSelectedModel(m.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && setSelectedModel(m.id)}
                 >
-                  <div className="model-card-top">
-                    <strong>{m.name}</strong>
-                    {selectedModel === m.id && <span className="model-active-badge">使用中</span>}
+                  <div className="model-option-top">
+                    <span className="model-option-name">{m.name}</span>
+                    <span className="model-tag">{m.tag}</span>
                   </div>
-                  <p>{m.desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* API Key Field */}
-          <div className="setting-section">
-            <label className="field-label" htmlFor="api-key">
-              <KeyRound size={14} /> DashScope API Key
-            </label>
-            <div className="password-field">
-              <input
-                id="api-key"
-                type={visible ? "text" : "password"}
-                value={key}
-                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-                onChange={(event) => setKey(event.target.value)}
-              />
-              <button
-                type="button"
-                className="eye-toggle-btn"
-                onClick={() => setVisible((current) => !current)}
-                aria-label={visible ? "隐藏密钥" : "显示密钥"}
-              >
-                {visible ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <p className="field-help">留空时不发送密钥，由后端读取 <code>DASHSCOPE_API_KEY</code>。</p>
-          </div>
-
-          {/* API Base URL Field */}
-          <div className="setting-section">
-            <label className="field-label" htmlFor="api-url">
-              <Server size={14} /> 后端服务地址 (可选)
-            </label>
-            <input
-              id="api-url"
-              className="text-input"
-              type="text"
-              value={apiBaseUrl}
-              placeholder="http://localhost:8000"
-              onChange={(event) => setApiBaseUrl(event.target.value)}
-            />
-            <p className="field-help">留空则读取 <code>VITE_API_BASE_URL</code>，未配置时使用 http://localhost:8000。</p>
+                  <p className="model-option-desc">{m.desc}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="modal-actions">
-          <button className="button-secondary" onClick={onClose}>
-            取消
-          </button>
-          <button className={`button-primary ${saved ? "is-saved" : ""}`} onClick={save}>
-            {saved ? (
-              <>
-                <Check size={16} /> 已保存生效
-              </>
-            ) : (
-              "保存配置"
-            )}
-          </button>
+        {/* API Key */}
+        <div className="setting-block">
+          <label className="setting-label" htmlFor="dashscope-key">
+            <KeyRound size={14} /> DashScope API Key
+          </label>
+          <Input.Password
+            id="dashscope-key"
+            value={key}
+            placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+            onChange={(e) => setKey(e.target.value)}
+            allowClear
+          />
+          <span className="setting-helper-text">
+            留空时不发送请求头，由后端读取环境变量 <code>DASHSCOPE_API_KEY</code>。
+          </span>
         </div>
-      </section>
-    </div>
+
+        {/* API Base URL */}
+        <div className="setting-block">
+          <label className="setting-label" htmlFor="backend-url">
+            <Server size={14} /> 后端服务地址（可选）
+          </label>
+          <Input
+            id="backend-url"
+            value={apiBaseUrl}
+            placeholder="http://localhost:8000"
+            onChange={(e) => setApiBaseUrl(e.target.value)}
+            allowClear
+          />
+          <span className="setting-helper-text">
+            留空则读取 <code>VITE_API_BASE_URL</code>，未配置时回退到 <code>http://localhost:8000</code>。
+          </span>
+        </div>
+      </div>
+    </Modal>
   );
 }

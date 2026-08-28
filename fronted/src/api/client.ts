@@ -165,8 +165,16 @@ export async function streamChatMessage(
   conversationId: string,
   onDelta: (content: string) => void,
   onStatus?: (content: string) => void,
+  signal?: AbortSignal,
 ): Promise<ChatResult> {
   const controller = new AbortController();
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+  }
   let timeoutId = 0;
   const resetTimeout = () => {
     window.clearTimeout(timeoutId);
