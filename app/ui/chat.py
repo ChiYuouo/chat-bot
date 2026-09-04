@@ -225,7 +225,13 @@ def main() -> None:
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            result = process_user_message(prompt)
+            result = process_user_message(
+                prompt,
+                uploaded_files=st.session_state.uploaded_files,
+                messages=st.session_state.messages,
+                last_intents=st.session_state.last_intents,
+                spinner_factory=st.spinner,
+            )
             response = result["content"]
             chart = result["chart"]
             rag_debug = result.get("rag_debug")
@@ -235,6 +241,8 @@ def main() -> None:
             if rag_debug:
                 with st.expander("查看 RAG 检索过程"):
                     st.json(rag_debug)
+
+        st.session_state.last_intents = result["intents"]
 
         st.session_state.messages.append({
             "role": "user",

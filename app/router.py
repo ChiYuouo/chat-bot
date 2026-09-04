@@ -6,8 +6,6 @@ from collections.abc import Callable
 from contextlib import nullcontext
 from typing import Any, Dict
 
-import streamlit as st
-
 from app.capabilities.data_agent import agent_answer
 from app.capabilities.general import general_answer
 from app.capabilities.rag import rag_answer
@@ -64,25 +62,18 @@ def _format_citations(citations: list[Dict[str, Any]]) -> str:
 def process_user_message(
     user_input: str,
     *,
-    uploaded_files: Dict[str, Any] | None = None,
-    messages: list[Dict[str, Any]] | None = None,
+    uploaded_files: Dict[str, Any],
+    messages: list[Dict[str, Any]],
     last_intents: list[str] | None = None,
     spinner_factory: Any | None = None,
     stream_callback: Callable[[str], None] | None = None,
     status_callback: Callable[[str], None] | None = None,
 ) -> Dict[str, Any]:
-    """处理一次对话，可由 Streamlit 或 HTTP 适配层复用。"""
-    uses_streamlit_state = uploaded_files is None
-    files = uploaded_files if uploaded_files is not None else st.session_state.uploaded_files
-    message_history = messages if messages is not None else st.session_state.messages
-    previous_intents = (
-        list(last_intents)
-        if last_intents is not None
-        else list(getattr(st.session_state, "last_intents", []))
-    )
-    spinner = spinner_factory or (
-        st.spinner if uses_streamlit_state else lambda _message: nullcontext()
-    )
+    """处理一次对话，不读取或修改任何 UI 框架的全局状态。"""
+    files = uploaded_files
+    message_history = messages
+    previous_intents = list(last_intents or [])
+    spinner = spinner_factory or (lambda _message: nullcontext())
     chart = None
     rag_debug = None
     prefetched_rag_result = None
@@ -256,8 +247,6 @@ def process_user_message(
         except Exception as exc:
             response_parts.append(f"❌ **{get_intent_badge(intent)} 执行失败**: {exc}\n")
 
-    if uses_streamlit_state:
-        st.session_state.last_intents = intents
     return {
         "content": "\n".join(response_parts),
         "chart": chart,

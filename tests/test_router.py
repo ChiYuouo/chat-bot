@@ -1,18 +1,8 @@
 import unittest
-from contextlib import nullcontext
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from app.models import IntentResult
 from app import router
-
-
-def _fake_streamlit(files):
-    return SimpleNamespace(
-        session_state=SimpleNamespace(uploaded_files=files, messages=[]),
-        spinner=lambda _message: nullcontext(),
-    )
-
 
 class RouterTests(unittest.TestCase):
     def test_detects_short_contextual_follow_up(self):
@@ -61,8 +51,9 @@ class RouterTests(unittest.TestCase):
             "image_path": None,
         }
 
-        with patch.object(router, "st", _fake_streamlit(files)):
-            result = router.process_user_message("文档内容是什么？")
+        result = router.process_user_message(
+            "文档内容是什么？", uploaded_files=files, messages=[]
+        )
 
         self.assertIn("需要先添加知识库资料", result["content"])
 
@@ -75,8 +66,7 @@ class RouterTests(unittest.TestCase):
         )
         files = {"csv_df": object(), "knowledge_chunks": [], "image_path": None}
 
-        with patch.object(router, "st", _fake_streamlit(files)):
-            result = router.process_user_message("帮我分析")
+        result = router.process_user_message("帮我分析", uploaded_files=files, messages=[])
 
         general_answer.assert_called_once()
         self.assertIn("已自动降级", result["content"])
@@ -114,10 +104,9 @@ class RouterTests(unittest.TestCase):
             "knowledge_keyword_index": None,
             "image_path": None,
         }
-        fake_st = _fake_streamlit(files)
-
-        with patch.object(router, "st", fake_st):
-            result = router.process_user_message("TextField 如何获取输入内容？")
+        result = router.process_user_message(
+            "TextField 如何获取输入内容？", uploaded_files=files, messages=[]
+        )
 
         rag_answer.assert_called_once_with(
             "TextField 如何获取输入内容？",
@@ -130,7 +119,7 @@ class RouterTests(unittest.TestCase):
         self.assertIn("普通问答 (置信度: 90%)", result["content"])
         self.assertNotIn("RAG (置信度: 90%)", result["content"])
         self.assertNotIn("执行失败", result["content"])
-        self.assertEqual(fake_st.session_state.last_intents, ["rag_qa"])
+        self.assertEqual(result["intents"], ["rag_qa"])
 
     @patch("app.router.general_answer", return_value="这是普通对话生成的计算器代码")
     @patch("app.router.rag_answer")
@@ -163,8 +152,9 @@ class RouterTests(unittest.TestCase):
             "image_path": None,
         }
 
-        with patch.object(router, "st", _fake_streamlit(files)):
-            result = router.process_user_message("一个基本的计算器")
+        result = router.process_user_message(
+            "一个基本的计算器", uploaded_files=files, messages=[]
+        )
 
         general_answer.assert_called_once()
         self.assertIn("这是普通对话生成的计算器代码", result["content"])
@@ -196,16 +186,15 @@ class RouterTests(unittest.TestCase):
             "knowledge_keyword_index": None,
             "image_path": None,
         }
-        fake_st = _fake_streamlit(files)
-
-        with patch.object(router, "st", fake_st):
-            result = router.process_user_message("帮我写一句生日祝福")
+        result = router.process_user_message(
+            "帮我写一句生日祝福", uploaded_files=files, messages=[]
+        )
 
         rag_answer.assert_called_once()
         general_answer.assert_called_once()
         self.assertIn("普通回答", result["content"])
         self.assertNotIn("资料中未找到相关信息", result["content"])
-        self.assertEqual(fake_st.session_state.last_intents, ["general"])
+        self.assertEqual(result["intents"], ["general"])
 
     @patch("app.router.general_answer", return_value="普通回答")
     @patch("app.router.rag_answer")
@@ -233,8 +222,9 @@ class RouterTests(unittest.TestCase):
             "image_path": None,
         }
 
-        with patch.object(router, "st", _fake_streamlit(files)):
-            result = router.process_user_message("帮我写一句生日祝福")
+        result = router.process_user_message(
+            "帮我写一句生日祝福", uploaded_files=files, messages=[]
+        )
 
         general_answer.assert_called_once()
         self.assertIn("普通回答", result["content"])
@@ -271,8 +261,9 @@ class RouterTests(unittest.TestCase):
             "image_path": None,
         }
 
-        with patch.object(router, "st", _fake_streamlit(files)):
-            result = router.process_user_message("员工年假有多少天？")
+        result = router.process_user_message(
+            "员工年假有多少天？", uploaded_files=files, messages=[]
+        )
 
         general_answer.assert_not_called()
         self.assertIn("RAG 回答", result["content"])
@@ -300,8 +291,9 @@ class RouterTests(unittest.TestCase):
             "image_path": None,
         }
 
-        with patch.object(router, "st", _fake_streamlit(files)):
-            router.process_user_message("文档内容是什么？")
+        router.process_user_message(
+            "文档内容是什么？", uploaded_files=files, messages=[]
+        )
 
         ensure_indexes.assert_called_once_with(files)
         rag_answer.assert_called_once_with("文档内容是什么？", store, keyword_index, [])
@@ -331,20 +323,25 @@ class RouterTests(unittest.TestCase):
             "knowledge_keyword_index": None,
             "image_path": None,
         }
-        fake_st = _fake_streamlit(files)
-        fake_st.session_state.messages = [
+        messages = [
             {"role": "user", "content": "普通聊天问题"},
             {"role": "assistant", "content": "普通聊天回答"},
         ]
 
-        with patch.object(router, "st", fake_st):
-            router.process_user_message("当前 PDF 的问题")
-            # Streamlit 主流程会在本轮处理完成后把问答写入全局 messages。
-            fake_st.session_state.messages.extend([
-                {"role": "user", "content": "当前 PDF 的问题"},
-                {"role": "assistant", "content": "当前文档回答"},
-            ])
-            router.process_user_message("那具体是多少？")
+        first_result = router.process_user_message(
+            "当前 PDF 的问题", uploaded_files=files, messages=messages
+        )
+        # 调用层负责保存本轮消息及 Router 返回的意图。
+        messages.extend([
+            {"role": "user", "content": "当前 PDF 的问题"},
+            {"role": "assistant", "content": "当前文档回答"},
+        ])
+        router.process_user_message(
+            "那具体是多少？",
+            uploaded_files=files,
+            messages=messages,
+            last_intents=first_result["intents"],
+        )
 
         self.assertEqual(seen_histories[0], [])
         self.assertEqual(
