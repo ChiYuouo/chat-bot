@@ -376,6 +376,17 @@ textarea:focus-visible {
   background: rgba(255, 59, 48, 0.08);
 }
 
+.sidebar-user-email {
+  color: var(--apple-text);
+  cursor: default;
+}
+
+.sidebar-user-email span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ==========================================================================
    Center Column: Main Panel & Topbar
    ========================================================================== */
@@ -1784,5 +1795,4 @@ textarea:focus-visible {
   line-height: 1.35;
   margin: 0;
 }
-
 

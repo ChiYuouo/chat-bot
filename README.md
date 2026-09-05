@@ -182,15 +182,23 @@ pnpm dev
 
 打开 `http://localhost:5173`。React 页面已接入聊天、资料上传/查询/删除、网页导入、CSV 分析文件和临时识图；请求契约与环境变量配置见 `fronted/README.md`。FastAPI 文档位于 `http://127.0.0.1:8000/docs`。
 
-### 本地持久化
+### 本地持久化与账号
 
-默认情况下，资料来源、解析后的 Chunk、API 对话消息和意图状态会保存到
-`data/copilot.sqlite3`；Chroma 向量索引保存到 `data/chroma/`。服务重启后，同一
-浏览器的会话 Cookie 会恢复对应资料和对话。可以通过
-`COPILOT_DATABASE_PATH` 环境变量指定 SQLite 文件位置。
+资料来源、解析后的 Chunk、对话消息和意图状态保存在 `data/copilot.sqlite3`；Chroma
+向量索引保存在 `data/chroma/`。浏览器未登录时，数据仍按临时会话隔离；注册或登录后，
+对话和知识库改由稳定的 `user_id` 归属。首次注册/登录会自动迁移当前匿名会话的数据，
+所以 Cookie 清除、服务重启或换浏览器后，只要重新登录仍可恢复数据。
 
-当前 API 使用浏览器会话作为临时隔离边界；正式的用户登录、用户级知识库与权限控制
-将在认证层接入后替换该 scope。
+React 页面侧栏提供“登录 / 注册”。登录 Cookie 只保存随机会话令牌，服务端仅保存其
+SHA-256 哈希；密码使用 PBKDF2-SHA256（独立盐值）保存。可通过
+`COPILOT_DATABASE_PATH` 指定 SQLite 文件位置。部署到 HTTPS 时请设置：
+
+```powershell
+$env:COPILOT_COOKIE_SECURE="true"
+```
+
+这套本地账号机制适用于演示和学习。企业生产环境还应接入统一身份认证（OIDC / SSO）、
+租户级权限控制、邮件验证、密码重置、限流及审计日志。
 
 也可以提前设置环境变量：
 

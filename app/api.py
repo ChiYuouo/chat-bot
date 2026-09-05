@@ -6,6 +6,10 @@ import json
 import os
 import re
 import secrets
+import base64
+import hashlib
+import hmac
+import sqlite3
 import tempfile
 import threading
 import time
@@ -32,8 +36,14 @@ from app.ingestion import (
     ingest_text_file,
     ingest_url,
 )
-from app.knowledge_base import add_source, remove_source, restore_persisted_knowledge
+from app.knowledge_base import (
+    add_source,
+    discard_persisted_vector_index,
+    remove_source,
+    restore_persisted_knowledge,
+)
 from app.models import KnowledgeSource
+from app.repositories.auth import SQLiteAuthRepository, User
 from app.repositories.conversations import SQLiteConversationRepository
 from app.router import process_user_message
 from app.state import (
@@ -46,6 +56,10 @@ from app.state import (
 
 SESSION_COOKIE_NAME = "copilot_session_id"
 SESSION_MAX_AGE_SECONDS = 6 * 60 * 60
+AUTH_COOKIE_NAME = "copilot_auth_token"
+AUTH_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+_PASSWORD_ITERATIONS = 600_000
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 MAX_API_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_STORED_CHARTS = 10
 _MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
@@ -67,6 +81,16 @@ class ConversationRenameRequest(BaseModel):
     title: str = Field(min_length=1, max_length=80)
 
 
+class AuthRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class CurrentUserResponse(BaseModel):
+    id: str
+    email: str
+
+
 @dataclass(frozen=True)
 class RequestCredentials:
     api_key: str | None = None
@@ -80,6 +104,7 @@ class ApiSession:
     updated_at: float = field(default_factory=time.time)
     lock: threading.RLock = field(default_factory=threading.RLock)
     knowledge_loaded: bool = False
+    loaded_scope_id: str | None = None
 
 
 class SessionStore:
@@ -136,6 +161,7 @@ class SessionStore:
 
 session_store = SessionStore()
 conversation_repository = SQLiteConversationRepository()
+auth_repository = SQLiteAuthRepository()
 
 
 def _cors_origins() -> list[str]:
@@ -143,6 +169,73 @@ def _cors_origins() -> list[str]:
     if configured.strip():
         return [origin.strip() for origin in configured.split(",") if origin.strip()]
     return ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def _cookie_secure() -> bool:
+    return os.getenv("COPILOT_COOKIE_SECURE", "false").strip().lower() in {
+        "1", "true", "yes",
+    }
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _PASSWORD_ITERATIONS)
+    return "$".join((
+        "pbkdf2_sha256",
+        str(_PASSWORD_ITERATIONS),
+        base64.urlsafe_b64encode(salt).decode("ascii"),
+        base64.urlsafe_b64encode(digest).decode("ascii"),
+    ))
+
+
+def _verify_password(password: str, stored_value: str) -> bool:
+    try:
+        algorithm, iterations, salt_b64, expected_b64 = stored_value.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        salt = base64.urlsafe_b64decode(salt_b64.encode("ascii"))
+        expected = base64.urlsafe_b64decode(expected_b64.encode("ascii"))
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt, int(iterations)
+        )
+        return hmac.compare_digest(digest, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+def _normalized_email(email: str) -> str:
+    normalized = email.strip().lower()
+    if not _EMAIL_RE.fullmatch(normalized):
+        raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
+    return normalized
+
+
+def _scope_for_user(user: User | None, anonymous_scope_id: str) -> str:
+    return f"user:{user.id}" if user is not None else anonymous_scope_id
+
+
+def _load_session_scope(session: ApiSession, scope_id: str) -> None:
+    """切换数据归属时释放临时文件，并从对应的持久化 scope 恢复资料。"""
+    if session.knowledge_loaded and session.loaded_scope_id == scope_id:
+        return
+    if session.knowledge_loaded:
+        release_uploaded_files(session.uploaded_files)
+        session.uploaded_files = _empty_uploaded_files()
+        session.charts.clear()
+    restore_persisted_knowledge(session.uploaded_files, scope_id)
+    session.loaded_scope_id = scope_id
+    session.knowledge_loaded = True
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        AUTH_COOKIE_NAME,
+        token,
+        max_age=AUTH_MAX_AGE_SECONDS,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite="lax",
+    )
 
 
 app = FastAPI(title="Enterprise AI Copilot API", version="1.0.0")
@@ -161,11 +254,13 @@ async def bind_session(request: Request, call_next):
         request.cookies.get(SESSION_COOKIE_NAME)
     )
     request.state.api_session = session
-    if not session.knowledge_loaded:
-        with session.lock:
-            if not session.knowledge_loaded:
-                restore_persisted_knowledge(session.uploaded_files, session_id)
-                session.knowledge_loaded = True
+    user = auth_repository.get_user_for_session(request.cookies.get(AUTH_COOKIE_NAME))
+    scope_id = _scope_for_user(user, session_id)
+    request.state.current_user = user
+    request.state.anonymous_scope_id = session_id
+    request.state.data_scope_id = scope_id
+    with session.lock:
+        _load_session_scope(session, scope_id)
     response = await call_next(request)
     if created:
         response.set_cookie(
@@ -173,6 +268,7 @@ async def bind_session(request: Request, call_next):
             session_id,
             max_age=SESSION_MAX_AGE_SECONDS,
             httponly=True,
+            secure=_cookie_secure(),
             samesite="lax",
         )
     return response
@@ -180,6 +276,10 @@ async def bind_session(request: Request, call_next):
 
 def get_session(request: Request) -> ApiSession:
     return request.state.api_session
+
+
+def get_current_user(request: Request) -> User | None:
+    return request.state.current_user
 
 
 def get_credentials(
@@ -301,6 +401,70 @@ def _conversation_scope(session: ApiSession) -> str:
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/auth/me")
+def current_user(user: User | None = Depends(get_current_user)) -> dict[str, Any]:
+    return {
+        "user": None if user is None else CurrentUserResponse(id=user.id, email=user.email)
+    }
+
+
+def _register_or_login(
+    payload: AuthRequest,
+    request: Request,
+    response: Response,
+    *,
+    is_registration: bool,
+) -> CurrentUserResponse:
+    if get_current_user(request) is not None:
+        raise HTTPException(status_code=409, detail="当前浏览器已经登录，请先退出登录")
+    email = _normalized_email(payload.email)
+    if is_registration:
+        try:
+            user = auth_repository.create_user(email, _hash_password(payload.password))
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="该邮箱已注册，请直接登录") from exc
+    else:
+        found = auth_repository.find_user_with_password(email)
+        if found is None or not _verify_password(payload.password, found[1]):
+            raise HTTPException(status_code=401, detail="邮箱或密码错误")
+        user = found[0]
+
+    old_scope_id = request.state.data_scope_id
+    new_scope_id = _scope_for_user(user, request.state.anonymous_scope_id)
+    auth_repository.migrate_scope(old_scope_id, new_scope_id)
+    discard_persisted_vector_index(old_scope_id)
+    session = get_session(request)
+    with session.lock:
+        _load_session_scope(session, new_scope_id)
+    _set_auth_cookie(response, auth_repository.create_session(user.id, AUTH_MAX_AGE_SECONDS))
+    return CurrentUserResponse(id=user.id, email=user.email)
+
+
+@app.post("/api/auth/register", response_model=CurrentUserResponse, status_code=201)
+def register(payload: AuthRequest, request: Request, response: Response) -> CurrentUserResponse:
+    return _register_or_login(payload, request, response, is_registration=True)
+
+
+@app.post("/api/auth/login", response_model=CurrentUserResponse)
+def login(payload: AuthRequest, request: Request, response: Response) -> CurrentUserResponse:
+    return _register_or_login(payload, request, response, is_registration=False)
+
+
+@app.post("/api/auth/logout", status_code=204)
+def logout(request: Request, response: Response) -> Response:
+    auth_repository.revoke_session(request.cookies.get(AUTH_COOKIE_NAME))
+    session = get_session(request)
+    with session.lock:
+        _load_session_scope(session, request.state.anonymous_scope_id)
+    response.delete_cookie(
+        AUTH_COOKIE_NAME,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite="lax",
+    )
+    return response
 
 
 @app.get("/api/conversations")

@@ -55,6 +55,79 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.json(), {"status": "ok"})
         self.assertIn("copilot_session_id", response.cookies)
 
+    @patch("app.api.process_user_message")
+    def test_register_migrates_anonymous_conversation_to_user_account(
+        self, process_user_message
+    ):
+        process_user_message.side_effect = [
+            {"content": "第一轮回答", "chart": None, "rag_debug": None, "intents": ["general"]},
+            {"content": "第二轮回答", "chart": None, "rag_debug": None, "intents": ["general"]},
+        ]
+        self.client.post(
+            "/api/chat",
+            json={"conversation_id": "conversation-a", "message": "匿名问题"},
+        )
+
+        registered = self.client.post(
+            "/api/auth/register",
+            json={"email": "learner@example.com", "password": "correct-horse"},
+        )
+
+        self.assertEqual(registered.status_code, 201)
+        self.assertEqual(registered.json()["email"], "learner@example.com")
+        self.assertIn("copilot_auth_token", registered.cookies)
+
+        # 内存 Session 消失后，数据仍按用户 ID 恢复，而不是依赖匿名 Cookie。
+        session_store.clear()
+        self.client.post(
+            "/api/chat",
+            json={"conversation_id": "conversation-a", "message": "登录后追问"},
+        )
+        self.assertEqual(process_user_message.call_args_list[1].kwargs["messages"][0]["content"], "匿名问题")
+
+        self.client.post("/api/auth/logout")
+        self.assertEqual(self.client.get("/api/conversations").json(), {"conversations": []})
+
+    def test_login_recovers_account_data_in_a_new_browser_session(self):
+        registered = self.client.post(
+            "/api/auth/register",
+            json={"email": "learner@example.com", "password": "correct-horse"},
+        )
+        self.assertEqual(registered.status_code, 201)
+
+        with TestClient(app) as another_client:
+            wrong_password = another_client.post(
+                "/api/auth/login",
+                json={"email": "learner@example.com", "password": "incorrect-password"},
+            )
+            logged_in = another_client.post(
+                "/api/auth/login",
+                json={"email": "learner@example.com", "password": "correct-horse"},
+            )
+
+        self.assertEqual(wrong_password.status_code, 401)
+        self.assertEqual(logged_in.status_code, 200)
+        self.assertEqual(logged_in.json()["email"], "learner@example.com")
+
+    @patch("app.api.ingest_text_file")
+    def test_register_migrates_anonymous_knowledge_sources(self, ingest_text_file):
+        ingest_text_file.return_value = (_source(), [_chunk()])
+        self.client.post(
+            "/api/sources",
+            data={"kind": "text"},
+            files={"file": ("A.md", b"content", "text/markdown")},
+        )
+        self.client.post(
+            "/api/auth/register",
+            json={"email": "learner@example.com", "password": "correct-horse"},
+        )
+
+        session_store.clear()
+        restored = self.client.get("/api/sources")
+
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.json()["sources"][0]["source_id"], "source-a")
+
     @patch("app.api.ingest_text_file")
     def test_upload_list_and_delete_knowledge_source(self, ingest_text_file):
         ingest_text_file.return_value = (_source(), [_chunk()])

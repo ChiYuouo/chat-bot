@@ -7,9 +7,13 @@ import {
   Settings,
   SquarePen,
   Trash2,
+  LogIn,
+  LogOut,
+  UserRound,
   X,
 } from "lucide-react";
 import React, { useState } from "react";
+import type { CurrentUser } from "../api/client";
 import type { Conversation } from "../types";
 import { BrandMark } from "./BrandMark";
 
@@ -48,6 +52,9 @@ interface SidebarProps {
   onRenameConversation: (conversationId: string, newTitle: string) => void;
   onClearSources: () => void;
   onOpenSettings: () => void;
+  user: CurrentUser | null;
+  onOpenAuth: () => void;
+  onLogout: () => void;
 }
 
 export function Sidebar({
@@ -63,6 +70,9 @@ export function Sidebar({
   onRenameConversation,
   onClearSources,
   onOpenSettings,
+  user,
+  onOpenAuth,
+  onLogout,
 }: SidebarProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
@@ -188,6 +198,23 @@ export function Sidebar({
 
       {/* Footer */}
       <div className="sidebar-footer">
+        {user ? (
+          <>
+            <div className="sidebar-footer-row sidebar-user-email" title={user.email}>
+              <UserRound size={14} />
+              <span>{user.email}</span>
+            </div>
+            <button className="sidebar-footer-row" onClick={onLogout} type="button">
+              <LogOut size={14} />
+              <span>退出登录</span>
+            </button>
+          </>
+        ) : (
+          <button className="sidebar-footer-row" onClick={onOpenAuth} type="button">
+            <LogIn size={14} />
+            <span>登录 / 注册</span>
+          </button>
+        )}
         <button
           className="sidebar-footer-row"
           onClick={onOpenSettings}

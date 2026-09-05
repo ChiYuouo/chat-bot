@@ -26,6 +26,10 @@ def _collection_name(files: Dict[str, Any]) -> str:
     scope_id = _scope_id(files)
     if scope_id is None:
         return f"knowledge-{uuid.uuid4().hex}"
+    return _collection_name_for_scope(scope_id)
+
+
+def _collection_name_for_scope(scope_id: str) -> str:
     digest = hashlib.sha256(scope_id.encode("utf-8")).hexdigest()[:24]
     return f"knowledge-{digest}"
 
@@ -74,6 +78,18 @@ def restore_persisted_knowledge(files: Dict[str, Any], scope_id: str) -> None:
     files["knowledge_chunks"] = _repository.load_chunks(scope_id)
     files["knowledge_store"] = None
     files["knowledge_keyword_index"] = None
+
+
+def discard_persisted_vector_index(scope_id: str) -> None:
+    """删除旧 scope 的索引；SQLite 中的 Chunk 会在下次检索时重建索引。"""
+    try:
+        Chroma(
+            collection_name=_collection_name_for_scope(scope_id),
+            persist_directory=Config.CHROMA_PERSIST_DIRECTORY,
+        ).delete_collection()
+    except Exception:
+        # 索引还未创建或已被清理时，不影响账号绑定流程。
+        pass
 
 
 def _delete_vector_chunks(files: Dict[str, Any], chunk_ids: list[str]) -> None:

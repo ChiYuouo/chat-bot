@@ -50,6 +50,11 @@ interface BackendConversation {
   }>;
 }
 
+export interface CurrentUser {
+  id: string;
+  email: string;
+}
+
 export class ApiError extends Error {
   readonly status?: number;
 
@@ -345,4 +350,33 @@ export async function renameConversation(conversationId: string, title: string):
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
   });
+}
+
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const response = await request<{ user: CurrentUser | null }>("/api/auth/me");
+  return response.user;
+}
+
+async function authenticate(
+  path: "/api/auth/login" | "/api/auth/register",
+  email: string,
+  password: string,
+): Promise<CurrentUser> {
+  return request<CurrentUser>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function register(email: string, password: string): Promise<CurrentUser> {
+  return authenticate("/api/auth/register", email, password);
+}
+
+export function login(email: string, password: string): Promise<CurrentUser> {
+  return authenticate("/api/auth/login", email, password);
+}
+
+export async function logout(): Promise<void> {
+  await request<void>("/api/auth/logout", { method: "POST" });
 }

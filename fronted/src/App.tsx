@@ -5,12 +5,16 @@ import {
   clearSources,
   deleteConversation as deletePersistedConversation,
   deleteSource,
+  getCurrentUser,
   listConversations,
   listSources,
+  logout,
   renameConversation as renamePersistedConversation,
   streamChatMessage,
   uploadSource,
 } from "./api/client";
+import type { CurrentUser } from "./api/client";
+import { AuthModal } from "./components/AuthModal";
 import { Composer } from "./components/Composer";
 import { MessageList } from "./components/MessageList";
 import { SettingsModal } from "./components/SettingsModal";
@@ -51,6 +55,8 @@ export default function App() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>(
     [initialConversation],
@@ -64,6 +70,8 @@ export default function App() {
   const [thinkingStatus, setThinkingStatus] = useState("正在思考...");
   const scrollAnchor = useRef<HTMLDivElement>(null);
   const streamAbortController = useRef<AbortController | null>(null);
+  // 登录态切换后，旧请求即使晚返回也不能覆盖新账号的数据。
+  const persistenceVersion = useRef(0);
 
   useEffect(() => {
     scrollAnchor.current?.scrollIntoView({ behavior: isThinking ? "auto" : "smooth" });
@@ -88,9 +96,15 @@ export default function App() {
   }, [activeConversationId, messages]);
 
   const refreshSources = () => {
+    const requestVersion = persistenceVersion.current;
     void listSources()
-      .then(setSources)
+      .then((nextSources) => {
+        if (requestVersion === persistenceVersion.current) {
+          setSources(nextSources);
+        }
+      })
       .catch((error) => {
+        if (requestVersion !== persistenceVersion.current) return;
         const reason = error instanceof Error ? error.message : "未知错误";
         setMessages((items) => [
           ...items,
@@ -99,25 +113,62 @@ export default function App() {
       });
   };
 
-  useEffect(() => {
-    refreshSources();
-  }, []);
+  const reloadPersistentState = async () => {
+    const requestVersion = ++persistenceVersion.current;
+    const [nextSources, remoteConversations] = await Promise.all([
+      listSources(),
+      listConversations(),
+    ]);
+    if (requestVersion !== persistenceVersion.current) return;
+    setSources(nextSources);
+    if (remoteConversations.length > 0) {
+      const active = remoteConversations[0];
+      setConversations(remoteConversations.slice(0, 50));
+      setActiveConversationId(active.id);
+      setMessages(active.messages);
+      return;
+    }
+    const fresh = createConversation();
+    setConversations([fresh]);
+    setActiveConversationId(fresh.id);
+    setMessages([]);
+  };
+
+  const clearVisibleWorkspace = () => {
+    const fresh = createConversation();
+    setSources([]);
+    setConversations([fresh]);
+    setActiveConversationId(fresh.id);
+    setMessages([]);
+    setDraft("");
+  };
 
   useEffect(() => {
-    let disposed = false;
-    void listConversations()
-      .then((remoteConversations) => {
-        if (disposed || remoteConversations.length === 0) return;
-        const active = remoteConversations[0];
-        setConversations(remoteConversations.slice(0, 50));
-        setActiveConversationId(active.id);
-        setMessages(active.messages);
-      })
-      .catch(() => undefined);
-    return () => {
-      disposed = true;
-    };
+    void reloadPersistentState().catch(() => undefined);
+    void getCurrentUser().then(setCurrentUser).catch(() => undefined);
   }, []);
+
+  const handleAuthenticated = (user: CurrentUser) => {
+    setCurrentUser(user);
+    setAuthOpen(false);
+    clearVisibleWorkspace();
+    void reloadPersistentState().catch(() => undefined);
+  };
+
+  const handleLogout = async () => {
+    if (isThinking) return;
+    // 从点击退出开始就让所有旧账号的在途请求失效。
+    ++persistenceVersion.current;
+    // 即便退出或随后刷新匿名数据失败，也绝不继续展示已登录用户的内容。
+    clearVisibleWorkspace();
+    setCurrentUser(null);
+    try {
+      await logout();
+      await reloadPersistentState();
+    } catch {
+      // 页面已清空；下次请求会按服务端实际登录态恢复数据。
+    }
+  };
 
   const newChat = () => {
     if (isThinking) return;
@@ -429,6 +480,9 @@ export default function App() {
           onRenameConversation={renameConversation}
           onClearSources={() => void handleClearSources()}
           onOpenSettings={() => setSettingsOpen(true)}
+          user={currentUser}
+          onOpenAuth={() => setAuthOpen(true)}
+          onLogout={() => void handleLogout()}
         />
 
         <main className="main-panel">
@@ -529,6 +583,11 @@ export default function App() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onSaved={refreshSources}
+      />
+      <AuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onAuthenticated={handleAuthenticated}
       />
     </div>
   );
