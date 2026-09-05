@@ -1,5 +1,6 @@
 import type {
   ChatResult,
+  Conversation,
   KnowledgeSource,
   Message,
   SourceKind,
@@ -35,6 +36,18 @@ interface BackendChatResponse {
 interface BackendChatStreamEvent extends BackendChatResponse {
   type?: "status" | "delta" | "done" | "error";
   message?: string;
+}
+
+interface BackendConversation {
+  id: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
+  messages: Array<{
+    role: Message["role"];
+    content: string;
+    created_at: number;
+  }>;
 }
 
 export class ApiError extends Error {
@@ -133,9 +146,27 @@ function normalizeSource(source: BackendSource): KnowledgeSource {
   };
 }
 
+function isoTime(timestamp: number): string {
+  return new Date(timestamp * 1000).toISOString();
+}
+
+function normalizeConversation(conversation: BackendConversation): Conversation {
+  return {
+    id: conversation.id,
+    title: conversation.title,
+    createdAt: isoTime(conversation.created_at),
+    updatedAt: isoTime(conversation.updated_at),
+    messages: conversation.messages.map((message, index) => ({
+      id: `${conversation.id}-${index}-${message.created_at}`,
+      role: message.role,
+      content: message.content,
+      createdAt: isoTime(message.created_at),
+    })),
+  };
+}
+
 export async function sendChatMessage(
   content: string,
-  history: Message[],
   conversationId: string,
 ): Promise<ChatResult> {
   const response = await request<BackendChatResponse>("/api/chat", {
@@ -144,10 +175,6 @@ export async function sendChatMessage(
     body: JSON.stringify({
       message: content,
       conversation_id: conversationId,
-      history: history.map(({ role, content: messageContent }) => ({
-        role,
-        content: messageContent,
-      })),
     }),
   });
 
@@ -161,7 +188,6 @@ export async function sendChatMessage(
 
 export async function streamChatMessage(
   content: string,
-  history: Message[],
   conversationId: string,
   onDelta: (content: string) => void,
   onStatus?: (content: string) => void,
@@ -195,10 +221,6 @@ export async function streamChatMessage(
       body: JSON.stringify({
         message: content,
         conversation_id: conversationId,
-        history: history.map(({ role, content: messageContent }) => ({
-          role,
-          content: messageContent,
-        })),
       }),
     });
 
@@ -302,4 +324,25 @@ export async function deleteSource(sourceId: string): Promise<void> {
 
 export async function clearSources(): Promise<void> {
   await request<void>("/api/sources", { method: "DELETE" });
+}
+
+export async function listConversations(): Promise<Conversation[]> {
+  const response = await request<{ conversations: BackendConversation[] }>(
+    "/api/conversations",
+  );
+  return response.conversations.map(normalizeConversation);
+}
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+  await request<void>(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function renameConversation(conversationId: string, title: string): Promise<void> {
+  await request<void>(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
 }

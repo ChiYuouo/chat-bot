@@ -32,12 +32,14 @@ from app.ingestion import (
     ingest_text_file,
     ingest_url,
 )
-from app.knowledge_base import add_source, remove_source
+from app.knowledge_base import add_source, remove_source, restore_persisted_knowledge
 from app.models import KnowledgeSource
+from app.repositories.conversations import SQLiteConversationRepository
 from app.router import process_user_message
 from app.state import (
     _empty_uploaded_files,
     clear_uploaded_files,
+    release_uploaded_files,
     remove_uploaded_image_temp_file,
 )
 
@@ -51,20 +53,18 @@ _CREDENTIAL_LOCK = threading.RLock()
 UploadKind = Literal["pdf", "text", "image", "audio", "csv", "vision"]
 
 
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str
-
-
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=20_000)
     conversation_id: str | None = Field(default=None, max_length=128)
-    history: list[ChatMessage] = Field(default_factory=list, max_length=100)
 
 
 class UrlSourceRequest(BaseModel):
     url: str = Field(min_length=1, max_length=2_048)
     title: str | None = Field(default=None, max_length=160)
+
+
+class ConversationRenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=80)
 
 
 @dataclass(frozen=True)
@@ -76,12 +76,10 @@ class RequestCredentials:
 @dataclass
 class ApiSession:
     uploaded_files: dict[str, Any] = field(default_factory=_empty_uploaded_files)
-    messages: list[dict[str, Any]] = field(default_factory=list)
-    last_intents: list[str] = field(default_factory=list)
-    conversation_intents: dict[str, list[str]] = field(default_factory=dict)
     charts: dict[str, bytes] = field(default_factory=dict)
     updated_at: float = field(default_factory=time.time)
     lock: threading.RLock = field(default_factory=threading.RLock)
+    knowledge_loaded: bool = False
 
 
 class SessionStore:
@@ -100,10 +98,11 @@ class SessionStore:
                 session.updated_at = time.time()
                 return normalized, session, False
 
-            new_id = secrets.token_urlsafe(24)
+            # Cookie 未过期但服务重启时，沿用它作为 SQLite scope，资料才能恢复。
+            new_id = normalized or secrets.token_urlsafe(24)
             session = ApiSession()
             self._sessions[new_id] = session
-            return new_id, session, True
+            return new_id, session, normalized is None
 
     def get(self, session_id: str | None) -> ApiSession | None:
         if not session_id:
@@ -120,7 +119,7 @@ class SessionStore:
             self._sessions.clear()
         for session in sessions:
             with session.lock:
-                clear_uploaded_files(session.uploaded_files)
+                release_uploaded_files(session.uploaded_files)
 
     def _discard_expired_locked(self) -> None:
         cutoff = time.time() - SESSION_MAX_AGE_SECONDS
@@ -132,10 +131,11 @@ class SessionStore:
         for session_id in expired_ids:
             session = self._sessions.pop(session_id)
             with session.lock:
-                clear_uploaded_files(session.uploaded_files)
+                release_uploaded_files(session.uploaded_files)
 
 
 session_store = SessionStore()
+conversation_repository = SQLiteConversationRepository()
 
 
 def _cors_origins() -> list[str]:
@@ -150,7 +150,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-DashScope-Api-Key", "X-Model"],
 )
 
@@ -161,6 +161,11 @@ async def bind_session(request: Request, call_next):
         request.cookies.get(SESSION_COOKIE_NAME)
     )
     request.state.api_session = session
+    if not session.knowledge_loaded:
+        with session.lock:
+            if not session.knowledge_loaded:
+                restore_persisted_knowledge(session.uploaded_files, session_id)
+                session.knowledge_loaded = True
     response = await call_next(request)
     if created:
         response.set_cookie(
@@ -266,9 +271,75 @@ def _store_chart(session: ApiSession, chart: bytes) -> str:
     return chart_id
 
 
+def _load_conversation(session: ApiSession, conversation_id: str) -> tuple[list[dict[str, str]], list[str]]:
+    """从 SQLite 恢复当前对话的消息和上轮意图。"""
+    scope_id = _conversation_scope(session)
+    return conversation_repository.load_conversation(scope_id, conversation_id) or ([], [])
+
+
+def _save_conversation(
+    session: ApiSession,
+    conversation_id: str,
+    messages: list[dict[str, str]],
+    intents: list[str],
+) -> None:
+    conversation_repository.save_conversation(
+        _conversation_scope(session),
+        conversation_id,
+        messages,
+        intents,
+    )
+
+
+def _conversation_scope(session: ApiSession) -> str:
+    scope_id = session.uploaded_files.get("knowledge_scope_id")
+    if not isinstance(scope_id, str) or not scope_id:
+        raise HTTPException(status_code=500, detail="会话存储尚未初始化")
+    return scope_id
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/conversations")
+def list_conversations(session: ApiSession = Depends(get_session)) -> dict[str, Any]:
+    with session.lock:
+        return {
+            "conversations": conversation_repository.list_conversations(
+                _conversation_scope(session)
+            )
+        }
+
+
+@app.patch("/api/conversations/{conversation_id}")
+def rename_conversation(
+    conversation_id: str,
+    payload: ConversationRenameRequest,
+    session: ApiSession = Depends(get_session),
+) -> None:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="对话标题不能为空")
+    with session.lock:
+        renamed = conversation_repository.rename_conversation(
+            _conversation_scope(session), conversation_id, title
+        )
+    if not renamed:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+
+@app.delete("/api/conversations/{conversation_id}", status_code=204)
+def delete_conversation(
+    conversation_id: str, session: ApiSession = Depends(get_session)
+) -> None:
+    with session.lock:
+        deleted = conversation_repository.delete_conversation(
+            _conversation_scope(session), conversation_id
+        )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="对话不存在")
 
 
 @app.post("/api/chat")
@@ -282,25 +353,21 @@ def chat(
     if not message:
         raise HTTPException(status_code=400, detail="消息内容不能为空")
 
-    history = [item.model_dump() for item in payload.history]
     conversation_id = payload.conversation_id or "default"
     with session.lock, request_credentials(credentials):
-        if not history:
-            session.conversation_intents.pop(conversation_id, None)
-        session.messages = history
-        previous_intents = session.conversation_intents.get(conversation_id, [])
+        messages, previous_intents = _load_conversation(session, conversation_id)
         result = process_user_message(
             message,
             uploaded_files=session.uploaded_files,
-            messages=session.messages,
+            messages=messages,
             last_intents=previous_intents,
         )
-        session.last_intents = list(result.get("intents") or [])
-        session.conversation_intents[conversation_id] = session.last_intents
-        session.messages.extend([
+        intents = list(result.get("intents") or [])
+        messages.extend([
             {"role": "user", "content": message},
             {"role": "assistant", "content": result["content"]},
         ])
+        _save_conversation(session, conversation_id, messages, intents)
 
         chart_url = None
         if isinstance(result.get("chart"), bytes):
@@ -330,7 +397,6 @@ def chat_stream(
     if not message:
         raise HTTPException(status_code=400, detail="消息内容不能为空")
 
-    history = [item.model_dump() for item in payload.history]
     conversation_id = payload.conversation_id or "default"
 
     def stream_events() -> Iterator[bytes]:
@@ -346,26 +412,21 @@ def chat_stream(
         def produce() -> None:
             try:
                 with session.lock, request_credentials(credentials):
-                    if not history:
-                        session.conversation_intents.pop(conversation_id, None)
-                    session.messages = history
-                    previous_intents = session.conversation_intents.get(
-                        conversation_id, []
-                    )
+                    messages, previous_intents = _load_conversation(session, conversation_id)
                     result = process_user_message(
                         message,
                         uploaded_files=session.uploaded_files,
-                        messages=session.messages,
+                        messages=messages,
                         last_intents=previous_intents,
                         stream_callback=emit_delta,
                         status_callback=emit_status,
                     )
-                    session.last_intents = list(result.get("intents") or [])
-                    session.conversation_intents[conversation_id] = session.last_intents
-                    session.messages.extend([
+                    intents = list(result.get("intents") or [])
+                    messages.extend([
                         {"role": "user", "content": message},
                         {"role": "assistant", "content": result["content"]},
                     ])
+                    _save_conversation(session, conversation_id, messages, intents)
 
                     chart_url = None
                     if isinstance(result.get("chart"), bytes):
@@ -519,8 +580,6 @@ def delete_source(
             files["image_bytes"] = None
             return
         if remove_source(files, source_id):
-            session.last_intents = []
-            session.conversation_intents.clear()
             return
         raise HTTPException(status_code=404, detail="资料不存在")
 
@@ -529,8 +588,6 @@ def delete_source(
 def delete_all_sources(session: ApiSession = Depends(get_session)) -> None:
     with session.lock:
         clear_uploaded_files(session.uploaded_files)
-        session.last_intents = []
-        session.conversation_intents.clear()
         session.charts.clear()
 
 

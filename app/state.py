@@ -5,7 +5,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from app.knowledge_base import discard_indexes
+from app.knowledge_base import clear_knowledge, discard_indexes, restore_persisted_knowledge
 
 
 def _empty_uploaded_files():
@@ -16,6 +16,7 @@ def _empty_uploaded_files():
         "knowledge_chunks": [],
         "knowledge_store": None,
         "knowledge_keyword_index": None,
+        "knowledge_scope_id": None,
         "image_name": None,
         "image_path": None,
         "image_bytes": None,
@@ -34,6 +35,9 @@ def init_session_state() -> None:
             st.session_state.uploaded_files.setdefault(key, value)
         if st.session_state.uploaded_files.get("knowledge_chunks") is None:
             st.session_state.uploaded_files["knowledge_chunks"] = []
+    if st.session_state.uploaded_files.get("knowledge_scope_id") is None:
+        scope_id = "streamlit-default"
+        restore_persisted_knowledge(st.session_state.uploaded_files, scope_id)
 
 
 def remove_uploaded_image_temp_file(uploaded_files=None) -> None:
@@ -52,8 +56,17 @@ def remove_uploaded_image_temp_file(uploaded_files=None) -> None:
 def clear_uploaded_files(uploaded_files=None) -> None:
     """清空 Streamlit 或显式传入会话中的全部资料。"""
     files = uploaded_files if uploaded_files is not None else st.session_state.uploaded_files
+    scope_id = files.get("knowledge_scope_id")
     remove_uploaded_image_temp_file(files)
-    discard_indexes(files)
+    clear_knowledge(files)
     files.clear()
     files.update(_empty_uploaded_files())
+    files["knowledge_scope_id"] = scope_id
+
+
+def release_uploaded_files(uploaded_files=None) -> None:
+    """释放进程内临时资源，但保留已写入 SQLite 的知识库。"""
+    files = uploaded_files if uploaded_files is not None else st.session_state.uploaded_files
+    remove_uploaded_image_temp_file(files)
+    discard_indexes(files)
 

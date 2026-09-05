@@ -1,5 +1,7 @@
 """应用配置。"""
 
+from pathlib import Path
+
 
 class Config:
     """集中管理模型和检索参数，保持原有默认值。"""
@@ -28,6 +30,11 @@ class Config:
     REWRITE_HISTORY_MESSAGES = 6
     RERANK_CHUNK_MAX_CHARS = 1_200
     RERANK_RELEVANCE_THRESHOLD = 0.55
+
+    # Chroma 是可重新构建的检索索引；SQLite 中的 Chunk 才是可恢复数据。
+    CHROMA_PERSIST_DIRECTORY = str(
+        Path(__file__).resolve().parents[1] / "data" / "chroma"
+    )
 
     IMAGE_SOURCE_MAX_BYTES = 8 * 1024 * 1024
     IMAGE_SOURCE_MAX_PIXELS = 25_000_000

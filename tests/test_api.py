@@ -1,6 +1,8 @@
 import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -20,17 +22,31 @@ def _source(source_id="source-a", name="A.md", modality="text"):
 
 
 def _chunk(source_id="source-a"):
-    return SimpleNamespace(metadata={"source_id": source_id, "chunk_id": "chunk-a"})
+    return SimpleNamespace(
+        page_content="测试资料内容",
+        metadata={"source_id": source_id, "chunk_id": "chunk-a"},
+    )
 
 
 class ApiTests(unittest.TestCase):
     def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.database_path = Path(self.temporary_directory.name) / "copilot.sqlite3"
+        self.database_environment = patch.dict(
+            os.environ,
+            {
+                "COPILOT_DATABASE_PATH": str(self.database_path),
+            },
+        )
+        self.database_environment.start()
         session_store.clear()
         self.client = TestClient(app)
 
     def tearDown(self):
         self.client.close()
         session_store.clear()
+        self.database_environment.stop()
+        self.temporary_directory.cleanup()
 
     def test_health_and_session_cookie(self):
         response = self.client.get("/api/health")
@@ -71,6 +87,78 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.json(), {"sources": []})
 
+    @patch("app.api.ingest_text_file")
+    def test_sources_are_restored_after_api_process_restart(self, ingest_text_file):
+        ingest_text_file.return_value = (_source(), [_chunk()])
+        self.client.post(
+            "/api/sources",
+            data={"kind": "text"},
+            files={"file": ("A.md", b"content", "text/markdown")},
+        )
+
+        # 模拟 Uvicorn 重启：内存 Session 消失，但浏览器 Cookie 仍在。
+        session_store.clear()
+        restored = self.client.get("/api/sources")
+
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.json()["sources"][0]["source_id"], "source-a")
+
+    @patch("app.api.process_user_message")
+    def test_conversation_history_and_intent_are_restored_after_restart(
+        self, process_user_message
+    ):
+        process_user_message.side_effect = [
+            {"content": "第一轮回答", "chart": None, "rag_debug": None, "intents": ["rag_qa"]},
+            {"content": "第二轮回答", "chart": None, "rag_debug": None, "intents": ["rag_qa"]},
+        ]
+        self.client.post(
+            "/api/chat",
+            json={"conversation_id": "conversation-a", "message": "员工年假几天？"},
+        )
+
+        session_store.clear()
+        self.client.post(
+            "/api/chat",
+            json={"conversation_id": "conversation-a", "message": "那最多几天？"},
+        )
+
+        second_call = process_user_message.call_args_list[1]
+        self.assertEqual(second_call.kwargs["last_intents"], ["rag_qa"])
+        self.assertEqual(
+            second_call.kwargs["messages"],
+            [
+                {"role": "user", "content": "员工年假几天？"},
+                {"role": "assistant", "content": "第一轮回答"},
+                {"role": "user", "content": "那最多几天？"},
+                {"role": "assistant", "content": "第二轮回答"},
+            ],
+        )
+
+    @patch("app.api.process_user_message")
+    def test_lists_reads_renames_and_deletes_persisted_conversation(
+        self, process_user_message
+    ):
+        process_user_message.return_value = {
+            "content": "回答", "chart": None, "rag_debug": None, "intents": ["general"]
+        }
+        self.client.post(
+            "/api/chat",
+            json={"conversation_id": "conversation-a", "message": "第一问"},
+        )
+
+        listed = self.client.get("/api/conversations")
+        renamed = self.client.patch(
+            "/api/conversations/conversation-a", json={"title": "年假咨询"}
+        )
+        renamed_list = self.client.get("/api/conversations")
+        deleted = self.client.delete("/api/conversations/conversation-a")
+
+        self.assertEqual(listed.json()["conversations"][0]["messages"][0]["content"], "第一问")
+        self.assertEqual(renamed.status_code, 200)
+        self.assertEqual(renamed_list.json()["conversations"][0]["title"], "年假咨询")
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(self.client.get("/api/conversations").json(), {"conversations": []})
+
     @patch("app.api.ingest_url")
     def test_add_url_source(self, ingest_url):
         ingest_url.return_value = (
@@ -101,7 +189,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/sources").json(), {"sources": []})
 
     @patch("app.api.process_user_message")
-    def test_chat_returns_chart_url_and_preserves_history(self, process_user_message):
+    def test_chat_returns_chart_url_and_persists_messages(self, process_user_message):
         process_user_message.return_value = {
             "content": "分析完成",
             "chart": b"png-bytes",
@@ -111,10 +199,7 @@ class ApiTests(unittest.TestCase):
 
         response = self.client.post(
             "/api/chat",
-            json={
-                "message": "分析销售额",
-                "history": [{"role": "user", "content": "上一轮"}],
-            },
+            json={"message": "分析销售额"},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -127,7 +212,6 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(chart.headers["content-type"], "image/png")
         call = process_user_message.call_args
         self.assertEqual(call.kwargs["messages"], [
-            {"role": "user", "content": "上一轮"},
             {"role": "user", "content": "分析销售额"},
             {"role": "assistant", "content": "分析完成"},
         ])
@@ -145,7 +229,7 @@ class ApiTests(unittest.TestCase):
         response = self.client.post(
             "/api/chat",
             headers={"X-DashScope-Api-Key": "request-key"},
-            json={"message": "你好", "history": []},
+            json={"message": "你好"},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -168,7 +252,7 @@ class ApiTests(unittest.TestCase):
 
         response = self.client.post(
             "/api/chat/stream",
-            json={"message": "你好", "history": []},
+            json={"message": "你好"},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -205,22 +289,15 @@ class ApiTests(unittest.TestCase):
         process_user_message.side_effect = answer
         self.client.post(
             "/api/chat",
-            json={"conversation_id": "conversation-a", "message": "A1", "history": []},
+            json={"conversation_id": "conversation-a", "message": "A1"},
         )
         self.client.post(
             "/api/chat",
-            json={"conversation_id": "conversation-b", "message": "B1", "history": []},
+            json={"conversation_id": "conversation-b", "message": "B1"},
         )
         self.client.post(
             "/api/chat",
-            json={
-                "conversation_id": "conversation-a",
-                "message": "A2",
-                "history": [
-                    {"role": "user", "content": "A1"},
-                    {"role": "assistant", "content": "ok"},
-                ],
-            },
+            json={"conversation_id": "conversation-a", "message": "A2"},
         )
 
         self.assertEqual(seen_last_intents, [[], [], ["rag_qa"]])

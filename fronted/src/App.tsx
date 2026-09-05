@@ -3,8 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   addUrlSource,
   clearSources,
+  deleteConversation as deletePersistedConversation,
   deleteSource,
+  listConversations,
   listSources,
+  renameConversation as renamePersistedConversation,
   streamChatMessage,
   uploadSource,
 } from "./api/client";
@@ -16,8 +19,6 @@ import { SourcePanel } from "./components/SourcePanel";
 import { Welcome } from "./components/Welcome";
 import {
   createConversation,
-  loadConversationState,
-  saveConversationState,
   titleFromMessages,
 } from "./conversations";
 import type { ChatResult, Conversation, KnowledgeSource, Message, SourceKind } from "./types";
@@ -44,7 +45,7 @@ function getFileSize(file: File): string {
 }
 
 export default function App() {
-  const [initialConversationState] = useState(loadConversationState);
+  const [initialConversation] = useState(createConversation);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sourcePanelOpen, setSourcePanelOpen] = useState(false);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -52,16 +53,12 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>(
-    initialConversationState.conversations,
+    [initialConversation],
   );
   const [activeConversationId, setActiveConversationId] = useState(
-    initialConversationState.activeConversationId,
+    initialConversation.id,
   );
-  const [messages, setMessages] = useState<Message[]>(() =>
-    initialConversationState.conversations.find(
-      (conversation) => conversation.id === initialConversationState.activeConversationId,
-    )?.messages ?? [],
-  );
+  const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingStatus, setThinkingStatus] = useState("正在思考...");
@@ -76,7 +73,9 @@ export default function App() {
     setConversations((items) => {
       const active = items.find((conversation) => conversation.id === activeConversationId);
       if (!active) return items;
-      const title = titleFromMessages(messages);
+      const title = active.title === "新对话"
+        ? titleFromMessages(messages)
+        : active.title;
       if (active.messages === messages && active.title === title) return items;
       const updated: Conversation = {
         ...active,
@@ -87,10 +86,6 @@ export default function App() {
       return [updated, ...items.filter((conversation) => conversation.id !== activeConversationId)];
     });
   }, [activeConversationId, messages]);
-
-  useEffect(() => {
-    saveConversationState(conversations, activeConversationId);
-  }, [activeConversationId, conversations]);
 
   const refreshSources = () => {
     void listSources()
@@ -106,6 +101,22 @@ export default function App() {
 
   useEffect(() => {
     refreshSources();
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    void listConversations()
+      .then((remoteConversations) => {
+        if (disposed || remoteConversations.length === 0) return;
+        const active = remoteConversations[0];
+        setConversations(remoteConversations.slice(0, 50));
+        setActiveConversationId(active.id);
+        setMessages(active.messages);
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
+    };
   }, []);
 
   const newChat = () => {
@@ -133,8 +144,17 @@ export default function App() {
     setSidebarOpen(false);
   };
 
-  const deleteConversation = (conversationId: string) => {
+  const deleteConversation = async (conversationId: string) => {
     if (isThinking) return;
+    try {
+      await deletePersistedConversation(conversationId);
+    } catch (error) {
+      const status = error instanceof Error && "status" in error
+        ? (error as { status?: number }).status
+        : undefined;
+      // 新建但从未发送消息的本地对话尚未写入 SQLite。
+      if (status !== 404) return;
+    }
     setConversations((items) => {
       const remaining = items.filter((c) => c.id !== conversationId);
       if (remaining.length === 0) {
@@ -155,18 +175,19 @@ export default function App() {
     setConversations((items) =>
       items.map((c) => (c.id === conversationId ? { ...c, title: newTitle } : c)),
     );
+    void renamePersistedConversation(conversationId, newTitle).catch(() => {
+      // 未发送消息的新对话尚未写入 SQLite，首次发送后会自动创建。
+    });
   };
 
   const streamAnswer = async (
     prompt: string,
-    history: Message[],
     conversationId: string,
     pendingMessage: Message,
     signal?: AbortSignal,
   ) => {
     const result = await streamChatMessage(
       prompt,
-      history,
       conversationId,
       (delta) => {
         setMessages((items) => {
@@ -218,7 +239,6 @@ export default function App() {
     if (!content || isThinking) return;
 
     const userMessage = makeMessage("user", content);
-    const previousMessages = messages;
     const conversationId = activeConversationId;
     const pendingMessage = makeMessage("assistant", "");
     setMessages((items) => [...items, userMessage]);
@@ -230,7 +250,7 @@ export default function App() {
     streamAbortController.current = controller;
 
     try {
-      await streamAnswer(content, previousMessages, conversationId, pendingMessage, controller.signal);
+      await streamAnswer(content, conversationId, pendingMessage, controller.signal);
     } catch (error) {
       if (controller.signal.aborted) {
         showStreamError(pendingMessage, "已停止生成。");
@@ -262,13 +282,12 @@ export default function App() {
     setMessages((prev) => prev.slice(0, lastUserIndex + 1));
     setThinkingStatus("正在识别问题类型...");
     setIsThinking(true);
-    const previousMessages = messages.slice(0, lastUserIndex);
     const pendingMessage = makeMessage("assistant", "");
 
     const controller = new AbortController();
     streamAbortController.current = controller;
 
-    streamAnswer(lastPrompt, previousMessages, conversationId, pendingMessage, controller.signal)
+    streamAnswer(lastPrompt, conversationId, pendingMessage, controller.signal)
       .catch((error) => {
         if (controller.signal.aborted) {
           showStreamError(pendingMessage, "已停止生成。");

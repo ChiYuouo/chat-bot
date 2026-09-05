@@ -85,11 +85,16 @@ def render_chat_input_area():
             )
             if file:
                 try:
-                    source, chunks = ingest_pdf(file.read(), source_name=file.name)
+                    file_bytes = file.read()
+                    source, chunks = ingest_pdf(file_bytes, source_name=file.name)
                 except Exception as exc:
                     st.error(str(exc))
                 else:
-                    add_source(st.session_state.uploaded_files, source, chunks)
+                    add_source(
+                        st.session_state.uploaded_files,
+                        source,
+                        chunks,
+                    )
                     st.session_state.pdf_upload_revision += 1
                     st.session_state.show_pdf = False
                     st.rerun()
@@ -104,15 +109,20 @@ def render_chat_input_area():
             )
             if file:
                 try:
+                    file_bytes = file.read()
                     source, chunks = ingest_text_file(
-                        file.read(),
+                        file_bytes,
                         source_name=file.name,
                         existing_content_hashes=_existing_source_hashes(),
                     )
                 except ValueError as exc:
                     st.error(str(exc))
                 else:
-                    add_source(st.session_state.uploaded_files, source, chunks)
+                    add_source(
+                        st.session_state.uploaded_files,
+                        source,
+                        chunks,
+                    )
                     st.session_state.text_upload_revision += 1
                     st.session_state.show_text = False
                     st.rerun()
@@ -152,7 +162,11 @@ def render_chat_input_area():
                 except Exception as exc:
                     st.error(str(exc))
                 else:
-                    add_source(st.session_state.uploaded_files, source, chunks)
+                    add_source(
+                        st.session_state.uploaded_files,
+                        source,
+                        chunks,
+                    )
                     st.session_state.image_source_upload_revision += 1
                     st.session_state.show_image_source = False
                     st.rerun()
@@ -176,7 +190,11 @@ def render_chat_input_area():
                 except Exception as exc:
                     st.error(str(exc))
                 else:
-                    add_source(st.session_state.uploaded_files, source, chunks)
+                    add_source(
+                        st.session_state.uploaded_files,
+                        source,
+                        chunks,
+                    )
                     st.session_state.audio_upload_revision += 1
                     st.session_state.show_audio = False
                     st.rerun()
